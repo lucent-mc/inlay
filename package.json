@@ -6,7 +6,8 @@
   "packageManager": "pnpm@11.21.0",
   "scripts": {
     "prototype:manifest": "node prototypes/manifest/tui.ts",
-    "prototype:reconcile": "node prototypes/reconcile/tui.ts"
+    "prototype:reconcile": "node prototypes/reconcile/tui.ts",
+    "prototype:reconcile-switchyard": "node prototypes/reconcile-switchyard/tui.ts"
   },
   "devDependencies": {
     "ajv": "^8.20.0",
