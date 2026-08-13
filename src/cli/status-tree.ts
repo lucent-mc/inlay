@@ -149,9 +149,7 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
   ) {
     const view: View = {
       selected: 0,
-      expanded: new Set(
-        entries.map((entry) => entry.path.split("/")[0]).filter((value): value is string => Boolean(value)),
-      ),
+      expanded: new Set(),
     };
     super({ ...io, render: () => render(entries, view) }, false);
     this.view = view;
