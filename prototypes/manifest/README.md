@@ -24,13 +24,16 @@ Every parent uses the same reference shape regardless of where it is hosted:
 {
   "extends": {
     "url": "https://cdn.modrinth.com/data/1KVo5zza/versions/zsRTt1bK/Fabulously.Optimized-v14.0.0-beta.4.mrpack",
-    "version": "zsRTt1bK",
-    "sha": "b7ca3332fa3b392901b002bc175febb3e8a26ff4bd8403705e7356a67b029b0ec6032cb23a3a77b1b1649428cf84da97d29b4935675a65873b3253f7bf4c8d86"
+    "hashes": {
+      "sha1": "6220d93ba9ed9d0b0b56299ff593fd35c1628b48",
+      "sha256": "c5a221a2f1f178acef0da4b4960ee0139bb8915528465719cef794be1ccf490a"
+    },
+    "fileSize": 164232
   }
 }
 ```
 
-The URL selects the resolver. Identifiers already encoded in the URL are not duplicated as fields. For a Git parent, `version` is its upstream release identity and `sha` is the resolved full commit; for an mrpack parent, `version` is its Modrinth version ID and `sha` is the exact artifact digest.
+The URL selects the resolver. `version` and `filename` are optional resolution hints and are omitted when the URL already identifies the exact file. Git repositories default to root `inlay.index.json`; Modrinth versions default to their single `.mrpack`. `filename` is needed only for a nonstandard manifest name, an ambiguous version, or an mrpack uploaded under another extension such as `.zip`. Resolution must yield exactly one file or the build blocks. SHA-1, SHA-256, and `fileSize` always verify the resolved bytes.
 
 ## Proposed shape
 

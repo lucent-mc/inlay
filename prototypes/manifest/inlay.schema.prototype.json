@@ -237,12 +237,12 @@
     },
     "parent": {
       "title": "Immutable parent",
-      "description": "The single parent reference. Its shape is source-agnostic: the URL selects the resolver, version records the upstream identity, and sha pins the immutable Git commit or Pack artifact.",
+      "description": "The single verified parent file. The URL and optional resolution hints must identify exactly one inlay.index.json or Pack artifact. Hashes and size always describe its exact bytes.",
       "type": "object",
       "required": [
         "url",
-        "version",
-        "sha"
+        "hashes",
+        "fileSize"
       ],
       "properties": {
         "url": {
@@ -251,13 +251,22 @@
         },
         "version": {
           "type": "string",
-          "description": "The upstream version identifier: for example an Inlay version/tag or a Modrinth version ID.",
+          "description": "Optional resolution hint: a full Git commit ID or Modrinth version ID. It may be omitted when the URL already identifies an immutable file.",
           "minLength": 1
         },
-        "sha": {
+        "filename": {
           "type": "string",
-          "description": "Full Git commit ID or SHA digest of the exact Pack artifact.",
-          "pattern": "^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}|[0-9A-Fa-f]{128})$"
+          "description": "Optional filename override. Git repositories default to inlay.index.json; Modrinth versions default to their single .mrpack. Use this only for a nonstandard or ambiguous artifact name.",
+          "minLength": 1,
+          "pattern": "^(?!.*[\\\\/])[^\\u0000]+$"
+        },
+        "hashes": {
+          "$ref": "#/$defs/repositoryHashes"
+        },
+        "fileSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
         }
       },
       "additionalProperties": false
