@@ -93,7 +93,7 @@ function renderTree(selected = 0, expanded = new Set(["config", "mods", "resourc
     }
   }
 
-  lines.push(pc.dim("│"), `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  space reconcile  enter inspect  q finish")}`);
+  lines.push(pc.dim("│"), `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  enter reconcile  space inspect  q finish")}`);
   return lines.join("\n");
 }
 
@@ -191,7 +191,7 @@ class TreePrompt extends Prompt<TreeIntent> {
         if (parent >= 0) this.view.selected = parent;
       }
       if (action === "space") {
-        this._setValue({ kind: "reconcile", path: node.path });
+        this._setValue({ kind: "inspect", path: node.path });
         this.state = "submit";
       }
     });
@@ -207,7 +207,7 @@ class TreePrompt extends Prompt<TreeIntent> {
     const visible = flattenVisible(buildTree(entries), this.view.expanded);
     const node = visible[this.view.selected]?.node;
     if (!node) return false;
-    this._setValue({ kind: "inspect", path: node.path });
+    this._setValue({ kind: "reconcile", path: node.path });
     return true;
   }
 }

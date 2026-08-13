@@ -10,7 +10,7 @@ This is the validation artifact for the complete CLI and Git-safety contract. It
 pnpm prototype:cli
 ```
 
-Use the arrow keys to navigate and expand or collapse branches. Press Space to open the reconciliation form for a file or directory, Enter to inspect provenance, and `q` to finish. A non-interactive snapshot of both the tree and command hierarchy is available with:
+Use the arrow keys to navigate and expand or collapse branches. Press Enter to open the reconciliation form for a file or directory, Space to inspect provenance, and `q` to finish. A non-interactive snapshot of both the tree and command hierarchy is available with:
 
 ```sh
 pnpm prototype:cli -- --demo
