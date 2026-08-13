@@ -22,6 +22,12 @@ Show only the proposed command hierarchy with:
 pnpm prototype:cli -- --help
 ```
 
+The stdin handoff between the tree and follow-up Clack forms has a deterministic regression harness:
+
+```sh
+pnpm prototype:cli:regression
+```
+
 ## State hierarchy
 
 The complete tree is sorted first by state and then alphabetically within each consecutive state group. A directory inherits the highest-priority state among its descendants.

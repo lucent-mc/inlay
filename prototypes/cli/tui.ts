@@ -1,5 +1,7 @@
+import { Prompt } from "@clack/core";
 import * as p from "@clack/prompts";
-import readline from "node:readline";
+import type { Readable, Writable } from "node:stream";
+import { pathToFileURL } from "node:url";
 import pc from "picocolors";
 import {
   buildTree,
@@ -138,24 +140,90 @@ function actionsFor(entry: FileEntry): Array<{ value: string; label: string; hin
   }
 }
 
-function readKey(): Promise<{ sequence?: string; name?: string; ctrl?: boolean }> {
-  readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) process.stdin.setRawMode(true);
-  return new Promise((resolve) => process.stdin.once("keypress", (_sequence, key) => resolve(key)));
+interface PromptIo {
+  input: Readable;
+  output: Writable;
 }
 
-function leaveRawMode() {
-  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+interface TreeIntent {
+  kind: "reconcile" | "inspect" | "finish";
+  path?: string;
 }
 
-async function reconcile(node: TreeNode) {
-  leaveRawMode();
+interface TreeViewState {
+  selected: number;
+  expanded: Set<string>;
+}
+
+class TreePrompt extends Prompt<TreeIntent> {
+  private readonly view: TreeViewState;
+
+  constructor(view: TreeViewState, io: PromptIo) {
+    super(
+      {
+        ...io,
+        render() {
+          return renderTree(view.selected, view.expanded);
+        },
+      },
+      false,
+    );
+    this.view = view;
+
+    this.on("cursor", (action) => {
+      const visible = flattenVisible(buildTree(entries), this.view.expanded);
+      const node = visible[this.view.selected]?.node;
+      if (!node) return;
+
+      if (action === "up") this.view.selected = Math.max(0, this.view.selected - 1);
+      if (action === "down") this.view.selected = Math.min(visible.length - 1, this.view.selected + 1);
+      if (action === "right" && node.kind === "directory" && !this.view.expanded.has(node.path)) {
+        this.view.expanded.add(node.path);
+      } else if (action === "right" && node.kind === "directory") {
+        const firstChild = visible.findIndex((item) => item.node.path.startsWith(`${node.path}/`));
+        if (firstChild >= 0) this.view.selected = firstChild;
+      }
+      if (action === "left" && node.kind === "directory" && this.view.expanded.has(node.path)) {
+        this.view.expanded.delete(node.path);
+      } else if (action === "left" && node.path.includes("/")) {
+        const parentPath = node.path.split("/").slice(0, -1).join("/");
+        const parent = visible.findIndex((item) => item.node.path === parentPath);
+        if (parent >= 0) this.view.selected = parent;
+      }
+      if (action === "space") {
+        this._setValue({ kind: "reconcile", path: node.path });
+        this.state = "submit";
+      }
+    });
+
+    this.on("key", (character) => {
+      if (character?.toLowerCase() !== "q") return;
+      this._setValue({ kind: "finish" });
+      this.state = "submit";
+    });
+  }
+
+  protected override _shouldSubmit(): boolean {
+    const visible = flattenVisible(buildTree(entries), this.view.expanded);
+    const node = visible[this.view.selected]?.node;
+    if (!node) return false;
+    this._setValue({ kind: "inspect", path: node.path });
+    return true;
+  }
+}
+
+function findNode(path: string, expanded: Set<string>): TreeNode | undefined {
+  return flattenVisible(buildTree(entries), expanded).find((item) => item.node.path === path)?.node;
+}
+
+async function reconcile(node: TreeNode, io: PromptIo) {
   const unresolved = descendants(node).filter((entry) => !["reconciled", "unchanged"].includes(entry.state));
   if (unresolved.length === 0) {
     p.note("Every selected file is already internally consistent.", node.path);
     return;
   }
   const action = await p.select({
+    ...io,
     message: unresolved.length === 1 ? `Reconcile ${unresolved[0].path}` : `Reconcile ${unresolved.length} files recursively`,
     options: actionsFor(unresolved[0]),
   });
@@ -176,49 +244,28 @@ async function reconcile(node: TreeNode) {
   }
 }
 
-async function runInteractive() {
-  let selected = 0;
-  const expanded = new Set(["config", "mods", "resourcepacks"]);
+export async function runInteractive(io: PromptIo = { input: process.stdin, output: process.stdout }) {
+  const view: TreeViewState = {
+    selected: 0,
+    expanded: new Set(["config", "mods", "resourcepacks"]),
+  };
   p.intro("lay status · prototype");
 
   while (true) {
-    console.clear();
-    console.log(renderTree(selected, expanded));
-    const root = buildTree(entries);
-    const visible = flattenVisible(root, expanded);
-    const key = await readKey();
-    if (key.name === "up") selected = Math.max(0, selected - 1);
-    if (key.name === "down") selected = Math.min(visible.length - 1, selected + 1);
-    if (key.name === "right") {
-      const node = visible[selected]?.node;
-      if (node?.kind === "directory" && !expanded.has(node.path)) expanded.add(node.path);
-      else if (node?.kind === "directory") {
-        const firstChild = visible.findIndex((item) => item.node.path.startsWith(`${node.path}/`));
-        if (firstChild >= 0) selected = firstChild;
-      }
-    }
-    if (key.name === "left") {
-      const node = visible[selected]?.node;
-      if (node?.kind === "directory" && expanded.has(node.path)) expanded.delete(node.path);
-      else if (node?.path.includes("/")) {
-        const parentPath = node.path.split("/").slice(0, -1).join("/");
-        const parent = visible.findIndex((item) => item.node.path === parentPath);
-        if (parent >= 0) selected = parent;
-      }
-    }
-    if (key.name === "space") await reconcile(visible[selected].node);
-    if (key.name === "return") {
-      leaveRawMode();
-      const node = visible[selected].node;
+    const intent = await new TreePrompt(view, io).prompt();
+    if (p.isCancel(intent) || intent?.kind === "finish") break;
+    if (!intent?.path) continue;
+    const node = findNode(intent.path, view.expanded);
+    if (!node) continue;
+    if (intent.kind === "reconcile") await reconcile(node, io);
+    if (intent.kind === "inspect") {
       p.note(descendants(node).map((entry) => `${stateSymbol[entry.state]} ${entry.path}\n  ${entry.owner}\n  ${entry.detail}`).join("\n"), node.path);
     }
-    if (key.name === "q" || (key.ctrl && key.name === "c")) break;
   }
 
-  leaveRawMode();
   const staged = entries.filter((entry) => entry.staged);
   if (staged.length > 0) {
-    const commit = await p.confirm({ message: "Commit all staged changes now?", initialValue: false });
+    const commit = await p.confirm({ ...io, message: "Commit all staged changes now?", initialValue: false });
     if (commit === true) {
       p.note(`${staged.map((entry) => `  ${entry.path}`).join("\n")}\n\nchore(layer): reconcile ${staged.length} managed file${staged.length === 1 ? "" : "s"}`, "lay commit preview");
     } else {
@@ -228,6 +275,9 @@ async function runInteractive() {
   p.outro("Prototype changed no files or Git state.");
 }
 
-if (args.has("--help") || args.has("-h")) console.log(help);
-else if (args.has("--demo")) console.log(`${renderTree()}\n\n${help}`);
-else await runInteractive();
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  if (args.has("--help") || args.has("-h")) console.log(help);
+  else if (args.has("--demo")) console.log(`${renderTree()}\n\n${help}`);
+  else await runInteractive();
+}

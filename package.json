@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.21.0",
   "scripts": {
     "prototype:cli": "node prototypes/cli/tui.ts",
+    "prototype:cli:regression": "node prototypes/cli/regression-exit.ts",
     "prototype:manifest": "node prototypes/manifest/tui.ts",
     "prototype:reconcile": "node prototypes/reconcile/tui.ts",
     "prototype:reconcile-switchyard": "node prototypes/reconcile-switchyard/tui.ts",
@@ -16,6 +17,7 @@
     "ajv-formats": "^3.0.1"
   },
   "dependencies": {
+    "@clack/core": "^1.4.3",
     "@clack/prompts": "^1.7.0",
     "picocolors": "^1.1.1"
   }
