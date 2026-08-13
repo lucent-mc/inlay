@@ -211,3 +211,7 @@ _Avoid_: Nondistributable Layer, private Layer, invalid Layer
 **Publication Destination**:
 An independently selectable service, such as GitHub Releases or Modrinth, to which an already built Pack artifact is uploaded.
 _Avoid_: Delivery Mode, Pack format
+
+**Publication Limit**:
+A non-configurable byte ceiling imposed by a configured Publication Destination on the final deterministic Pack artifact. Inlay checks the completed `.mrpack` before any upload and a multi-destination release must satisfy every selected destination. Exceeding a Publication Limit blocks that targeted build or release without making the Layer, resolved content, or `.mrpack` format invalid; local builds with no publication destination have no such ceiling. Limits live in destination adapters and change only with an Inlay release when the external service changes.
+_Avoid_: Manifest field, resolved-content limit, archive-complexity budget
