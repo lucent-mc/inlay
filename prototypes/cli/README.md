@@ -37,6 +37,8 @@ The complete tree is sorted first by state and then alphabetically within each c
 
 Generated Git exclusions do not hide known inherited files from this tree. They only prevent Git from accidentally tracking them and hide unknown ignored candidates.
 
+The active row follows Clack's visual language: a cyan `◆` and compact cyan label highlight establish keyboard focus, while inactive rows retain a dim vertical rail. The highlight covers only the node label; the state symbol remains outside it and keeps its semantic color. Unchanged rows recede in gray. Selection never erases file status, and color is never the only signal.
+
 ## Boundaries represented
 
 - The playable instance is the authoring working copy.

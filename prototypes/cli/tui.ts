@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import readline from "node:readline";
+import pc from "picocolors";
 import {
   buildTree,
   descendants,
@@ -56,34 +57,57 @@ function renderTree(selected = 0, expanded = new Set(["config", "mods", "resourc
     Object.keys(stateLabel).map((state) => [state, entries.filter((entry) => entry.state === state).length]),
   );
   const lines = [
-    "lay status · Lucent Vanilla@1.4.0 · client instance",
-    `? ${counts.untracked}  ! ${counts.conflict}  ~ ${counts.updated}  − ${counts.deleted}  ✓ ${counts.reconciled}  · ${counts.unchanged}`,
-    "",
+    `${pc.cyan("◆")}  ${pc.bold("lay status")} ${pc.dim("· Lucent Vanilla@1.4.0 · client instance")}`,
+    `${pc.dim("│")}  ${paintState("untracked", `? ${counts.untracked}`)}  ${paintState("conflict", `! ${counts.conflict}`)}  ${paintState("updated", `~ ${counts.updated}`)}  ${paintState("deleted", `− ${counts.deleted}`)}  ${paintState("reconciled", `✓ ${counts.reconciled}`)}  ${paintState("unchanged", `· ${counts.unchanged}`)}`,
+    pc.dim("│"),
   ];
 
   for (const [index, item] of visible.entries()) {
     const { node, depth } = item;
-    const cursor = index === selected ? "›" : " ";
+    const active = index === selected;
+    const cursor = active ? pc.cyan("◆") : pc.dim("│");
     const branch = node.kind === "directory" ? (expanded.has(node.path) ? "▾" : "▸") : " ";
-    lines.push(`${cursor} ${stateSymbol[node.state]} ${"  ".repeat(depth)}${branch} ${node.name}`);
+    const rawLabel = `${"  ".repeat(depth)}${branch} ${node.name}`;
+    const label = `${"  ".repeat(depth)}${pc.dim(branch)} ${node.name}`;
+    const paintedLabel = active
+      ? pc.bgCyan(pc.black(pc.bold(` ${rawLabel} `)))
+      : node.state === "unchanged"
+        ? pc.dim(label)
+        : label;
+    lines.push(`${cursor}  ${paintState(node.state, stateSymbol[node.state])} ${paintedLabel}`);
   }
 
   const focus = visible[selected]?.node;
   if (focus) {
     const affected = descendants(focus);
-    lines.push("", "DETAIL");
-    lines.push(`  ${focus.path}${focus.kind === "directory" ? ` · ${affected.length} files` : ""}`);
+    lines.push(pc.dim("│"), `${pc.dim("│")}  ${pc.bold("DETAIL")}`);
+    lines.push(`${pc.dim("│")}  ${pc.cyan(focus.path)}${focus.kind === "directory" ? pc.dim(` · ${affected.length} files`) : ""}`);
     if (focus.entry) {
-      lines.push(`  ${stateLabel[focus.entry.state]} · ${focus.entry.owner}`);
-      lines.push(`  ${focus.entry.detail}`);
+      lines.push(`${pc.dim("│")}  ${stateLabel[focus.entry.state]} ${pc.dim(`· ${focus.entry.owner}`)}`);
+      lines.push(`${pc.dim("│")}  ${pc.dim(focus.entry.detail)}`);
     } else {
       const summary = [...new Set(affected.map((entry) => stateLabel[entry.state]))].join(" · ");
-      lines.push(`  ${summary}`);
+      lines.push(`${pc.dim("│")}  ${pc.dim(summary)}`);
     }
   }
 
-  lines.push("", "↑↓ navigate  ←→ collapse/expand  space reconcile  enter inspect  q finish");
+  lines.push(pc.dim("│"), `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  space reconcile  enter inspect  q finish")}`);
   return lines.join("\n");
+}
+
+function paintState(state: FileEntry["state"], value: string): string {
+  switch (state) {
+    case "conflict":
+    case "deleted":
+      return pc.red(value);
+    case "untracked":
+    case "updated":
+      return pc.yellow(value);
+    case "reconciled":
+      return pc.green(value);
+    case "unchanged":
+      return pc.dim(value);
+  }
 }
 
 function actionsFor(entry: FileEntry): Array<{ value: string; label: string; hint?: string }> {
