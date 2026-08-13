@@ -1,12 +1,12 @@
 {
   "$schema": "../inlay.schema.prototype.json",
   "extends": {
-    "url": "https://raw.githubusercontent.com/lucent-mc/inlay/6a9fc7fb0ac9a2e26fb5af8e3ec9bb59dde756fc/prototypes/manifest/fixtures/parent-inlay.index.json",
+    "url": "https://raw.githubusercontent.com/lucent-mc/inlay/f0eba65f30b90f9d3982011142594670bc2cd331/prototypes/manifest/fixtures/parent-inlay.index.json",
     "hashes": {
-      "sha1": "ce4f2afe9e45dfbac16c06cbd6a5050a291637d9",
-      "sha256": "6f765550a9d62a5c57e2a3d1a9381cfa5da5064771e8dbe72a209788fdbe52fd"
+      "sha1": "2f1464b4dd1e868d5a7cc585ce87d14bd0cfa53f",
+      "sha256": "95a63a6a43bf39d5df8abc46c2835648a86e5be962c55f0ce326f602d768fbda"
     },
-    "fileSize": 253
+    "fileSize": 805
   },
   "formatVersion": 1,
   "game": "minecraft",

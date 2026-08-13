@@ -22,6 +22,7 @@
       "$ref": "#/$defs/parent"
     },
     "exclusions": {
+      "description": "Inherited paths removed before this Layer's files are applied. If omitted, no inherited paths are excluded.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/exclusion"
@@ -29,7 +30,7 @@
       "default": []
     },
     "delivery": {
-      "description": "Opt into commit-addressed GitHub delivery for repository-backed files. If absent, repository-backed files are bundled as mrpack overrides.",
+      "description": "Opt into commit-addressed GitHub delivery for repository-backed files. If omitted, repository-backed files are bundled as mrpack overrides.",
       "const": "github"
     },
     "formatVersion": {
@@ -272,6 +273,7 @@
       "additionalProperties": false
     },
     "exclusion": {
+      "description": "Remove an inherited path before applying this Layer's files. A child may add a new file at the same path afterward.",
       "type": "object",
       "required": [
         "path"

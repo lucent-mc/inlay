@@ -73,6 +73,26 @@ Inlay adds a repository-backed authoring form to the same array:
 
 The destination `path` participates in the same per-path composition as every other file. If the resolved parent already owns that path, the current entry is an implicit override. Otherwise it is an addition.
 
+A parent-owned mod update always performs two explicit operations: exclude the inherited JAR, then add the selected replacement. This also naturally handles the usual case where the version changes the JAR filename.
+
+```json
+{
+  "exclusions": [
+    { "path": "mods/sodium-fabric-0.8.12+mc1.21.1.jar" }
+  ],
+  "files": [
+    {
+      "path": "mods/sodium-fabric-0.8.13-beta.2+mc1.21.1.jar",
+      "hashes": { "sha1": "…", "sha512": "…" },
+      "downloads": ["https://cdn.modrinth.com/…/sodium-fabric-0.8.13-beta.2%2Bmc1.21.1.jar"],
+      "fileSize": 1574596
+    }
+  ]
+}
+```
+
+The CLI presents this as one “replace inherited mod” operation and writes both declarations atomically. Omitting `exclusions` means no exclusions. Omitting `delivery` means repository-backed files are bundled.
+
 The relative source must resolve to one Git-tracked regular file. Its SHA-1, SHA-256, and byte size must match the manifest or the build fails. Symlinks are never included. A CLI directory selection is authoring convenience only: it expands the selected directory into explicit per-file entries before writing the manifest.
 
 By default, repository-backed entries are copied into `overrides`, `client-overrides`, or `server-overrides` and omitted from the generated `modrinth.index.json`. With `"delivery": "github"`, they instead become commit-addressed HTTPS downloads with computed SHA-1, SHA-512, and size. Existing HTTPS entries always retain normal Modrinth behavior.
