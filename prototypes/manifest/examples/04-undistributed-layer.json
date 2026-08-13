@@ -11,8 +11,8 @@
   "formatVersion": 1,
   "game": "minecraft",
   "versionId": "0.1.0",
-  "name": "Internal Tuning Layer",
-  "summary": "A valid Layer with no distribution target.",
+  "name": "Unpublished Tuning Layer",
+  "summary": "A valid buildable Layer whose Pack has not been published.",
   "files": [
     {
       "path": "config/internal-tuning.json",

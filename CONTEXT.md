@@ -5,12 +5,12 @@ This context describes how independently maintained modpack content composes int
 ## Language
 
 **Layer**:
-A versioned delta that can extend at most one parent Layer with mod and file changes. A Layer may exist without being released directly.
+A versioned delta that can extend at most one parent Layer with mod and file changes. Every valid Layer is buildable; publication is external state, so a Layer may remain Undistributed without declaring that status.
 _Avoid_: Modpack, pack
 
 **Layer Version**:
 One immutable revision of a Layer. A native Git Layer Version is identified by its Git object format and full commit ID, independent of the repository mirror used to retrieve it. Different commits in the same repository are different Layer Versions.
-_Avoid_: Layer, Parent Selector, release name
+_Avoid_: Layer, Parent Resolution Hint, release name
 
 **Layer Lineage**:
 The ordered chain formed by recursively following a Layer's parent. A Lineage can branch into multiple child Layers but never merges through multiple parents.
@@ -21,15 +21,15 @@ The complete Modrinth dependency map shared exactly by every Layer Version in on
 _Avoid_: Environment Slot, compatible version range
 
 **Parent Reference**:
-An immutable identifier for the exact parent Layer version from which a child inherits. A Git Parent Reference consists of the explicitly trusted repository and full commit SHA. A Modrinth Parent Reference locks the canonical project and API version IDs plus one selected Pack artifact's filename, exact download URL, complete hashes, and exact size; all must match during resolution. Builds never resolve a mutable selector.
-_Avoid_: Latest version, branch, version range
+An immutable reference to one exact parent `inlay.index.json` or Pack artifact. It always records a URL, SHA-1, SHA-256, and exact byte size. Optional `version` and `filename` values supply resolution information not already embedded in the URL. Resolution must identify exactly one file before its bytes are verified; zero or multiple candidates are failures.
+_Avoid_: Provider-specific parent schema, mutable selector, project metadata
 
-**Parent Selector**:
-Optional, explicitly typed provenance retained alongside a Parent Reference: either a Git tag or a release exposed by a supported host, initially GitHub. A selector must peel to a commit before locking. Update tooling may resolve it again when explicitly requested, but branches and version ranges are not Parent Selectors and no selector determines an ordinary build.
-_Avoid_: Parent Reference, build input, version range
+**Parent Resolution Hint**:
+An optional `version` or `filename` used only when the Parent Reference URL does not completely identify the parent file. A URL without an embedded immutable version requires `version`. Without `filename`, GitHub resolves root `inlay.index.json` and Modrinth resolves exactly one `.mrpack`.
+_Avoid_: Parent identity, branch, version range
 
 **Parent Update**:
-An atomic operation that explicitly re-resolves a Parent Selector, validates the candidate's complete Layer Lineage, presents its changes, and replaces the Parent Reference and reconciled instance only after acceptance. Failure leaves the existing reference and instance unchanged.
+An atomic operation that explicitly resolves a new parent candidate, validates its complete Layer Lineage, presents its changes, and replaces the Parent Reference and reconciled instance only after acceptance. Failure leaves the existing reference and instance unchanged.
 _Avoid_: Ordinary build, silent relock, partial reconciliation
 
 **Imported Root**:
@@ -101,12 +101,12 @@ A generated account of the exact toolkit version, source revision, resolved Laye
 _Avoid_: Materialization Record, Layer Manifest, release notes
 
 **Tracked Content**:
-An approved regular file or downloadable artifact that belongs to a Layer through an exact declaration or recursive Directory Inclusion. Repository-owned content must also be tracked by Git, but Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
+An approved regular file or downloadable artifact that belongs to a Layer through an exact per-file declaration. Repository-owned content must also be tracked by Git, but Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
 _Avoid_: Git-tracked file, arbitrary instance content, runtime files
 
-**Directory Inclusion**:
-An explicit declaration that recursively makes Git-tracked regular files beneath a Content Path into Tracked Content of the current Layer. Inclusions form a set, so overlapping declarations select a file only once. Untracked files on disk are never adopted implicitly.
-_Avoid_: Git directory, unrestricted wildcard, runtime directory
+**Directory Selection**:
+An authoring convenience in the CLI that expands a selected directory into exact per-file Tracked Content declarations before writing the Layer Manifest. It is not a manifest declaration or wildcard; untracked files and filesystem links are never selected.
+_Avoid_: Directory Inclusion, Git directory, runtime wildcard
 
 **Content Path**:
 The portable, normalized instance-relative path that identifies Tracked Content within a Content Scope. Declared spelling is preserved, but paths that differ only by separators or case collide.
@@ -165,8 +165,12 @@ The fully resolved client-and-server content model produced by composing a Layer
 _Avoid_: Layer, delta, single-environment installation
 
 **Distribution Target**:
-An optional standard `.mrpack` output configuration for a Layer, including its Delivery Mode, artifact filename stem, and release metadata. GitHub and Modrinth may independently publish the one resulting Release Build.
-_Avoid_: Publication Destination, Layer, source
+External workflow configuration that asks Inlay to build or publish a Layer as a standard `.mrpack`. Its absence says nothing about Layer capability; it only means no distribution was requested in that workflow.
+_Avoid_: Layer capability, manifest field, Publication Destination
+
+**Undistributed Layer**:
+A valid buildable Layer for which no Pack release currently exists on GitHub or Modrinth. This is observed publication state, never a declaration in the Layer Manifest.
+_Avoid_: Nondistributable Layer, private Layer, invalid Layer
 
 **Publication Destination**:
 An independently selectable service, such as GitHub Releases or Modrinth, to which an already built Pack artifact is uploaded.
