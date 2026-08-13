@@ -132,6 +132,26 @@ _Avoid_: URL equality, modification time, Declaration Equality
 Equality of every normalized field in two content declarations, including payload hashes, environment policy, download locations, and file size. Parent-update review reports declaration changes even when their payloads are equal.
 _Avoid_: Payload Equality, path identity
 
+**Resolved Inventory**:
+The provenance-aware view of every effective content declaration after composing a Layer Lineage. It records content kind, owning Layer, dependency relationships, provider metadata, license metadata, and replacement history when known. Validation, `lay list`, dependency reconciliation, documentation, licensing, and changelog generation consume this one derived model rather than scanning independently.
+_Avoid_: Layer Manifest, duplicated metadata store, launcher file list
+
+**Dependency Closure**:
+The complete set of required content reachable from the resolved Pack's selected mods under its exact Runtime Target and compatibility adapters. `lay add`, update, and remove reconcile this closure transactionally; ordinary validation and builds report an incomplete closure but never mutate the Layer Manifest to repair it.
+_Avoid_: Modrinth loader dependencies, optional recommendation, implicit launcher install
+
+**Orphan Dependency**:
+A dependency that was reachable before a removal or update operation but has no remaining dependents afterward. It is a cleanup candidate, not automatically disposable: library-like projects may default to removal, while useful standalone mods require confirmation.
+_Avoid_: Unused local file, excluded ancestor content, incompatible dependency
+
+**Content Documentation**:
+Markdown beneath the Layer Manifest's `docs` root, which defaults to repository-root `docs`. Namespaced frontmatter associates a document with one resolved Content Path and may supply human-maintained names, licenses, dependency notes, and attribution when supported providers or embedded metadata cannot. It supplements derived metadata and never replaces file identity or provenance.
+_Avoid_: Layer Manifest, generated Pack content, provider metadata cache
+
+**Change Fragment**:
+A Markdown file under `.inlay/changes` that records one release-worthy intent through YAML frontmatter: SemVer bump, structured pack-domain changes, affected paths, replacements, and content associations, followed by human context. `lay version` consumes fragments transactionally to update Release Identity and the changelog.
+_Avoid_: Git commit message, changelog entry, Materialization Drift
+
 **Content Cache**:
 A shared store of validated immutable Git objects, Pack artifacts, and payloads addressed by their native commit identity or verified SHA-512 digest. Cached objects may satisfy resolution offline; missing objects fail explicitly and never cause fallback to another version.
 _Avoid_: Parent Reference, mutable download cache, availability guarantee
