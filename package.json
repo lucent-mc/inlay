@@ -1,10 +1,35 @@
 {
-  "name": "@lucent-mc/inlay-prototype",
-  "private": true,
-  "description": "Throwaway prototypes for Inlay's layered Modrinth pack model.",
+  "name": "@lucent-mc/inlay",
+  "version": "0.1.0",
+  "description": "Author, resolve, validate, and build layered Minecraft modpacks.",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "lay": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "action",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./schema/1.0.0": "./schema/inlay-1.0.0.schema.json",
+    "./package.json": "./package.json"
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-dist/test/**/*.test.js\"",
+    "lay": "pnpm build --silent && node dist/cli.js",
     "prototype:cli": "node prototypes/cli/tui.ts",
     "prototype:cli:regression": "node prototypes/cli/regression-exit.ts",
     "prototype:manifest": "node prototypes/manifest/tui.ts",
@@ -12,13 +37,23 @@
     "prototype:reconcile-switchyard": "node prototypes/reconcile-switchyard/tui.ts",
     "prototype:field-ledger": "node prototypes/field-ledger/tui.ts"
   },
-  "devDependencies": {
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1"
-  },
   "dependencies": {
     "@clack/core": "^1.4.3",
     "@clack/prompts": "^1.7.0",
-    "picocolors": "^1.1.1"
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "commander": "^14.0.1",
+    "execa": "^9.6.1",
+    "fflate": "^0.8.2",
+    "picocolors": "^1.1.1",
+    "semver": "^7.7.2",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^24.2.1",
+    "@types/semver": "^7.7.0",
+    "fast-check": "^4.3.0",
+    "typescript": "^5.9.2"
   }
 }

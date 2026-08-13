@@ -1,1 +1,10 @@
 node_modules/
+dist/
+.test-dist/
+*.tsbuildinfo
+.inlay/materialization.json
+.inlay/transactions/
+*.mrpack
+*.mrpack.sha256
+*.mrpack.sha512
+*.mrpack.build.json
