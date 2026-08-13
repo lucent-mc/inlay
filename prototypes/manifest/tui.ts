@@ -39,6 +39,10 @@ if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
 const validate = createManifestValidator(schema);
 const examples = await loadExamples();
 
+function renderManifest(manifest: unknown): string {
+  return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
 async function validateManifest(manifest: unknown) {
   const schemaResult = validate(manifest);
   if (!schemaResult.valid || typeof manifest !== "object" || manifest === null) {
@@ -74,7 +78,17 @@ async function validateManifest(manifest: unknown) {
   return { valid: errors.length === 0, errors };
 }
 
-if (process.argv.includes("--check")) {
+const showArgument = process.argv.indexOf("--show");
+if (showArgument !== -1) {
+  const requestedName = process.argv[showArgument + 1];
+  const example = examples.find((candidate) => candidate.name === requestedName);
+  if (!example) {
+    console.error(`Unknown example: ${requestedName ?? "(missing name)"}`);
+    process.exitCode = 1;
+  } else {
+    process.stdout.write(renderManifest(example.manifest));
+  }
+} else if (process.argv.includes("--check")) {
   let failed = false;
   for (const example of examples) {
     const result = await validateManifest(example.manifest);
@@ -120,7 +134,7 @@ if (process.argv.includes("--check")) {
     ].join("\n");
 
     p.note(report, "Resolution preview");
-    p.note(JSON.stringify(example.manifest, null, 2), "inlay.index.json");
+    process.stdout.write(`\n── inlay.index.json ──\n${renderManifest(example.manifest)}── end manifest ──\n\n`);
   }
 
   p.outro("Prototype finished; no files were changed.");
