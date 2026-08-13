@@ -1,6 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import * as p from "@clack/prompts";
+import { GitAdapter } from "../adapters/git.js";
 import { MANIFEST_FILENAME, MANIFEST_SCHEMA_URL } from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
 import { writeManifest } from "../manifest/index.js";
@@ -14,6 +15,7 @@ interface InitOptions {
   loader?: string;
   loaderVersion?: string;
   interactive: boolean;
+  dryRun?: boolean;
 }
 
 async function existingModrinth(root: string): Promise<Partial<LayerManifest> | undefined> {
@@ -73,7 +75,11 @@ export async function initialize(root: string, options: InitOptions): Promise<La
       ...(loader && loaderVersion ? { [loader]: loaderVersion } : {}),
     },
   };
-  await writeManifest(root, manifest);
-  await updateGeneratedExcludes(root, []);
+  if (options.dryRun !== true) {
+    await writeManifest(root, manifest);
+    await updateGeneratedExcludes(root, []);
+    const git = new GitAdapter(root);
+    if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], false);
+  }
   return manifest;
 }

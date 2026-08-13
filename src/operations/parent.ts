@@ -1,12 +1,15 @@
+import { GitAdapter } from "../adapters/git.js";
+import { MANIFEST_FILENAME } from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
 import { readManifest, writeManifest } from "../manifest/index.js";
 import { composeLayers } from "../resolution/compose.js";
 import { LineageResolver, lockParentReference } from "../resolution/parents.js";
+import { materialize } from "./materialize.js";
 
 export async function setParent(
   root: string,
   source: string,
-  options: { version?: string; filename?: string },
+  options: { version?: string; filename?: string; dryRun?: boolean },
 ) {
   const { manifest } = await readManifest(root);
   const parent = await lockParentReference(source, options);
@@ -23,6 +26,7 @@ export async function setParent(
       ),
     );
   }
+  if (options.dryRun === true) return { parent, record: null };
   manifest.extends = parent;
   await writeManifest(root, manifest);
   composeLayers([
@@ -34,13 +38,18 @@ export async function setParent(
       content: [],
     },
   ]);
-  return parent;
+  const record = await materialize(root, "client");
+  await new GitAdapter(root).stage([MANIFEST_FILENAME], false);
+  return { parent, record };
 }
 
-export async function removeParent(root: string) {
+export async function removeParent(root: string, dryRun = false) {
   const { manifest } = await readManifest(root);
   const previous = manifest.extends;
+  if (dryRun) return { previous, record: null };
   delete manifest.extends;
   await writeManifest(root, manifest);
-  return previous;
+  const record = await materialize(root, "client");
+  await new GitAdapter(root).stage([MANIFEST_FILENAME], false);
+  return { previous, record };
 }

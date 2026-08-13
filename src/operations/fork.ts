@@ -1,5 +1,6 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
+import { GitAdapter } from "../adapters/git.js";
 import { MANIFEST_FILENAME, MANIFEST_SCHEMA_URL } from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
 import { writeManifest } from "../manifest/index.js";
@@ -16,6 +17,7 @@ export async function forkLayer(
     name: string;
     layerVersion?: string;
     environment?: Environment;
+    dryRun?: boolean;
   },
 ) {
   try {
@@ -39,7 +41,12 @@ export async function forkLayer(
     files: [],
     dependencies: { ...parentLayer.manifest.dependencies },
   };
+  if (options.dryRun === true) {
+    return { manifest, record: null, wouldMaterialize: options.environment ?? "client" };
+  }
   await writeManifest(root, manifest);
   const record = await materialize(root, options.environment ?? "client");
+  const git = new GitAdapter(root);
+  if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], false);
   return { manifest, record };
 }

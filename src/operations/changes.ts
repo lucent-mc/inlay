@@ -114,7 +114,7 @@ async function stagedEntries(root: string, git: GitAdapter): Promise<ChangeEntry
 
 export async function createChange(
   root: string,
-  options: { bump?: Bump; message?: string; interactive: boolean },
+  options: { bump?: Bump; message?: string; interactive: boolean; dryRun?: boolean },
 ) {
   const git = new GitAdapter(root);
   const changes = await stagedEntries(root, git);
@@ -139,6 +139,7 @@ export async function createChange(
   }
   const identifier = `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${Math.random().toString(36).slice(2, 8)}`;
   const relative = `.inlay/changes/${identifier}.md`;
+  if (options.dryRun === true) return { path: relative, bump, changes };
   await mkdir(path.join(root, ".inlay", "changes"), { recursive: true });
   const frontmatter = YAML.stringify({ bump, changes }).trimEnd();
   await writeFile(path.join(root, relative), `---\n${frontmatter}\n---\n\n${body ?? ""}\n`, "utf8");

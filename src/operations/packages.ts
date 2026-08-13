@@ -28,12 +28,14 @@ export interface AddOptions {
   version?: string;
   interactive: boolean;
   releaseChannel?: "release" | "beta" | "alpha";
+  dryRun?: boolean;
 }
 
 export interface RemoveOptions {
   interactive: boolean;
   dependents?: "remove" | "abort";
   orphans?: "remove" | "keep";
+  dryRun?: boolean;
 }
 
 function runtime(manifest: LayerManifest): { minecraft: string; loader?: string } {
@@ -180,6 +182,15 @@ export async function addContent(root: string, projectInput: string, options: Ad
   });
   const planned = [...additions, ...replacements];
   if (planned.length === 0) return { added: [], updated: [], dependencies: [] };
+  if (options.dryRun === true) {
+    return {
+      added: additions.map(([, item]) => item.declaration.path),
+      updated: replacements.map(([, item]) => item.declaration.path),
+      dependencies: planned
+        .filter(([id]) => id !== requestedProject.id)
+        .map(([, item]) => item.declaration.path),
+    };
+  }
 
   const staging = path.join(root, ".inlay", "transactions", `${process.pid}-${Date.now()}`);
   await mkdir(staging, { recursive: true });
@@ -331,6 +342,9 @@ export async function removeContent(root: string, target: string, options: Remov
       .filter((item) => item.path === selected.path || (item.projectId && removal.has(item.projectId)))
       .map((item) => item.path),
   );
+  if (options.dryRun === true) {
+    return { removed: [...paths], projects: [...removal].map((id) => byProject.get(id)?.name ?? id) };
+  }
   const owned = new Set(manifest.files.map((file) => file.path));
   manifest.files = manifest.files.filter((file) => !paths.has(file.path));
   for (const removedPath of paths) {

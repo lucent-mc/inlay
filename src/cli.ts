@@ -127,21 +127,18 @@ program
   .option("--loader-version <version>")
   .action(async (local, command) => {
     const options = globalOptions(command);
+    let initialized = false;
     await execute("init", options, async () => {
-      if (options.dryRun)
-        throw new InlayError(
-          error(
-            "dry-run-unavailable",
-            "lay init requires a target write; use a temporary directory to preview.",
-          ),
-        );
       const manifest = await initialize(options.root, {
         ...local,
         version: local.layerVersion,
         interactive: options.interactive,
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
       });
-      return { data: manifest, changed: true };
+      initialized = options.dryRun !== true;
+      return { data: manifest, changed: initialized };
     });
+    if (initialized && options.interactive && options.json !== true) await interactiveStatus(options.root);
   });
 
 program
@@ -155,16 +152,20 @@ program
   .option("--environment <environment>", "client or server", "client")
   .action(async (source, selector, local, command) => {
     const options = globalOptions(command);
-    await execute("fork", options, async () => ({
-      data: await forkLayer(options.root, source, {
+    let forked = false;
+    await execute("fork", options, async () => {
+      const data = await forkLayer(options.root, source, {
         version: selector,
         filename: local.filename,
         name: local.name,
         layerVersion: local.layerVersion,
         environment: local.environment as Environment,
-      }),
-      changed: true,
-    }));
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+      });
+      forked = options.dryRun !== true;
+      return { data, changed: forked };
+    });
+    if (forked && options.interactive && options.json !== true) await interactiveStatus(options.root);
   });
 
 program
@@ -194,7 +195,7 @@ program
   .option("--layer <name>", "filter by owning Layer name or version")
   .action(async (local, command) => {
     const options = globalOptions(command);
-    if (options.interactive && options.json !== true) {
+    if (options.interactive && options.json !== true && options.dryRun !== true) {
       try {
         const checked = await checkPack(options.root);
         const data = listView(checked, local.resolved === true, {
@@ -228,7 +229,7 @@ program
   .description("inspect and reconcile the playable instance")
   .action(async (_local, command) => {
     const options = globalOptions(command);
-    if (options.interactive && options.json !== true) {
+    if (options.interactive && options.json !== true && options.dryRun !== true) {
       try {
         await interactiveStatus(options.root);
       } catch (cause) {
@@ -260,14 +261,19 @@ program
   .option("--action <action>", "add, record, remove, exclude, restore, upstream, or preserve")
   .action(async (target, local, command) => {
     const options = globalOptions(command);
-    await execute("reconcile", options, async () => ({
-      data: await reconcilePath(options.root, target.replaceAll("\\", "/"), {
+    let reconciled = false;
+    await execute("reconcile", options, async () => {
+      const data = await reconcilePath(options.root, target.replaceAll("\\", "/"), {
         interactive: options.interactive,
         ...(local.action === undefined ? {} : { action: local.action as ReconcileAction }),
         ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
-      }),
-      changed: options.dryRun !== true,
-    }));
+      });
+      reconciled = options.dryRun !== true;
+      return { data, changed: reconciled };
+    });
+    if (reconciled && options.interactive && options.json !== true) {
+      await commitStaged(options.root, { interactive: true });
+    }
   });
 
 program
@@ -280,7 +286,8 @@ program
     await execute<unknown>("build", options, async () => {
       const report = await status(options.root);
       if (report.unresolved > 0) {
-        if (options.interactive && options.json !== true) await interactiveStatus(options.root);
+        if (options.interactive && options.json !== true && options.dryRun !== true)
+          await interactiveStatus(options.root);
         const refreshed = await status(options.root);
         if (refreshed.unresolved > 0)
           throw new InlayError(
@@ -308,10 +315,22 @@ program
   .option("--environment <environment>", "client or server", "client")
   .action(async (local, command) => {
     const options = globalOptions(command);
-    await execute("materialize", options, async () => ({
-      data: await materialize(options.root, local.environment as Environment),
-      changed: true,
-    }));
+    await execute<unknown>("materialize", options, async () => {
+      if (options.dryRun) {
+        const checked = await checkPack(options.root);
+        const environment = local.environment as Environment;
+        return {
+          data: {
+            environment,
+            files: [...checked.pack.slots.entries()]
+              .filter(([slot]) => slot.endsWith(`\0${environment}`))
+              .map(([, content]) => ({ path: content.path, owner: content.owner })),
+          },
+          diagnostics: checked.diagnostics,
+        };
+      }
+      return { data: await materialize(options.root, local.environment as Environment), changed: true };
+    });
   });
 
 program
@@ -319,7 +338,11 @@ program
   .description("Git fetch plus verified external-content prefetch")
   .action(async (_local, command) => {
     const options = globalOptions(command);
-    await execute("fetch", options, async () => ({ data: await fetchLayer(options.root) }));
+    await execute("fetch", options, async () => ({
+      data: options.dryRun
+        ? { wouldRun: ["git fetch", "prefetch verified content"] }
+        : await fetchLayer(options.root),
+    }));
   });
 
 program
@@ -329,8 +352,10 @@ program
   .action(async (local, command) => {
     const options = globalOptions(command);
     await execute("pull", options, async () => ({
-      data: await pullLayer(options.root, local.environment as Environment),
-      changed: true,
+      data: options.dryRun
+        ? { wouldRun: ["git pull", `materialize ${local.environment} content`] }
+        : await pullLayer(options.root, local.environment as Environment),
+      changed: options.dryRun !== true,
     }));
   });
 
@@ -343,8 +368,10 @@ program
   .action(async (branch, local, command) => {
     const options = globalOptions(command);
     await execute("switch", options, async () => ({
-      data: await switchLayer(options.root, branch, local.environment as Environment),
-      changed: true,
+      data: options.dryRun
+        ? { wouldRun: [`git switch ${branch}`, `materialize ${local.environment} content`] }
+        : await switchLayer(options.root, branch, local.environment as Environment),
+      changed: options.dryRun !== true,
     }));
   });
 
@@ -364,16 +391,20 @@ for (const verb of ["set", "update"] as const) {
     .action(async (source, selector, local, command) => {
       const options = globalOptions(command);
       await execute(`parent ${verb}`, options, async () => ({
-        data: await setParent(options.root, source, { version: selector, filename: local.filename }),
-        changed: true,
+        data: await setParent(options.root, source, {
+          version: selector,
+          filename: local.filename,
+          ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+        }),
+        changed: options.dryRun !== true,
       }));
     });
 }
 parent.command("remove").action(async (_local, command) => {
   const options = globalOptions(command);
   await execute("parent remove", options, async () => ({
-    data: await removeParent(options.root),
-    changed: true,
+    data: await removeParent(options.root, options.dryRun === true),
+    changed: options.dryRun !== true,
   }));
 });
 
@@ -408,8 +439,9 @@ program
         interactive: options.interactive,
         ...(local.version ? { version: local.version } : {}),
         ...(local.channel ? { releaseChannel: local.channel } : {}),
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
       }),
-      changed: true,
+      changed: options.dryRun !== true,
     }));
   });
 
@@ -428,8 +460,9 @@ program
         interactive: options.interactive,
         ...(local.dependents ? { dependents: local.dependents } : {}),
         ...(local.orphans ? { orphans: local.orphans } : {}),
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
       }),
-      changed: true,
+      changed: options.dryRun !== true,
     }));
   });
 
@@ -442,7 +475,10 @@ program
     const options = globalOptions(command);
     await execute<unknown>("update", options, async () => {
       if (local.check || !target) return { data: await discoverUpdates(options.root) };
-      return { data: await updateContent(options.root, target, options.interactive), changed: true };
+      return {
+        data: await updateContent(options.root, target, options.interactive, options.dryRun === true),
+        changed: options.dryRun !== true,
+      };
     });
   });
 
@@ -481,8 +517,9 @@ program
         interactive: options.interactive,
         ...(local.bump ? { bump: local.bump } : {}),
         ...(local.message ? { message: local.message } : {}),
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
       }),
-      changed: true,
+      changed: options.dryRun !== true,
     }));
   });
 

@@ -51,7 +51,7 @@ export async function discoverUpdates(root: string): Promise<UpdateCandidate[]> 
   return candidates.sort((left, right) => left.projectName.localeCompare(right.projectName));
 }
 
-export async function updateContent(root: string, target: string, interactive: boolean) {
+export async function updateContent(root: string, target: string, interactive: boolean, dryRun = false) {
   const candidates = await discoverUpdates(root);
   const selected = candidates.find(
     (candidate) =>
@@ -65,5 +65,6 @@ export async function updateContent(root: string, target: string, interactive: b
     version: selected.candidateVersionId,
     interactive,
     releaseChannel: selected.releaseChannel,
+    dryRun,
   });
 }
