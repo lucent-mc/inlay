@@ -1,0 +1,55 @@
+name: Check Inlay update candidates
+on:
+  workflow_call:
+    inputs:
+      toolkit-version:
+        type: string
+        required: true
+      grouping:
+        type: string
+        default: per-mod
+permissions:
+  contents: read
+  issues: write
+jobs:
+  updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - id: candidates
+        shell: bash
+        run: |
+          result="$(pnpm --silent dlx "@lucent-mc/inlay@${{ inputs.toolkit-version }}" update --check --no-interactive --json)"
+          printf '%s' "$result" > "$RUNNER_TEMP/inlay-candidates.json"
+      - uses: actions/github-script@v7
+        env:
+          GROUPING: ${{ inputs.grouping }}
+          CANDIDATES_FILE: ${{ runner.temp }}/inlay-candidates.json
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync(process.env.CANDIDATES_FILE, 'utf8'));
+            const candidates = result.data;
+            if (!Array.isArray(candidates) || candidates.length === 0) return;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100
+            });
+            const groups = process.env.GROUPING === 'combined'
+              ? [['combined', candidates]]
+              : candidates.map(candidate => [candidate.projectId, [candidate]]);
+            for (const [group, items] of groups) {
+              const exact = items.map(item => `${item.projectId}:${item.candidateVersionId}`).sort().join(',');
+              const marker = `<!-- inlay-update group=${group} candidates=${exact} -->`;
+              if (issues.some(issue => issue.state === 'closed' && issue.body?.includes(marker))) continue;
+              const open = issues.find(issue => issue.state === 'open' && issue.body?.includes(`<!-- inlay-update group=${group} `));
+              const title = items.length === 1
+                ? `Update ${items[0].projectName} to ${items[0].candidateVersion}`
+                : `Update ${items.length} owned mods`;
+              const body = `${marker}\n\n${items.map(item => `- **${item.projectName}**: ${item.installedVersion} → ${item.candidateVersion}`).join('\n')}\n\nAll candidates match the Layer Runtime Target and still require normal pack testing.`;
+              if (open) await github.rest.issues.update({owner: context.repo.owner, repo: context.repo.repo, issue_number: open.number, title, body});
+              else await github.rest.issues.create({owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['inlay:update']});
+            }

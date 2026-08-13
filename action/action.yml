@@ -1,0 +1,27 @@
+name: Inlay CLI
+description: Run one pinned Inlay CLI command against the checked-out Layer
+inputs:
+  version:
+    description: Exact @lucent-mc/inlay version
+    required: true
+  command:
+    description: lay arguments, without the executable name
+    required: true
+outputs:
+  result:
+    description: Versioned lay JSON result
+    value: ${{ steps.lay.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - id: lay
+      shell: bash
+      env:
+        INLAY_VERSION: ${{ inputs.version }}
+        INLAY_COMMAND: ${{ inputs.command }}
+      run: |
+        set -euo pipefail
+        corepack enable
+        result="$(pnpm --silent dlx "@lucent-mc/inlay@${INLAY_VERSION}" ${INLAY_COMMAND} --no-interactive --json)"
+        printf '%s\n' "$result"
+        printf 'result<<INLAY_JSON\n%s\nINLAY_JSON\n' "$result" >> "$GITHUB_OUTPUT"

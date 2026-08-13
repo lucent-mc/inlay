@@ -1,0 +1,74 @@
+name: Build Inlay pack
+on:
+  workflow_call:
+    inputs:
+      toolkit-version:
+        type: string
+        required: true
+      publish-github:
+        type: boolean
+        default: false
+      publish-modrinth:
+        type: boolean
+        default: false
+      modrinth-project-id:
+        type: string
+        required: false
+    secrets:
+      MODRINTH_TOKEN:
+        required: false
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - name: Validate
+        run: pnpm --silent dlx "@lucent-mc/inlay@${{ inputs.toolkit-version }}" check --no-interactive --json
+      - name: Build
+        env:
+          TARGETS: ${{ inputs.publish-github && inputs.publish-modrinth && 'github modrinth' || inputs.publish-github && 'github' || inputs.publish-modrinth && 'modrinth' || '' }}
+        run: |
+          args=(build --no-interactive --json)
+          if test -n "$TARGETS"; then args+=(--target $TARGETS); fi
+          pnpm --silent dlx "@lucent-mc/inlay@${{ inputs.toolkit-version }}" "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inlay-mrpack
+          path: |
+            dist/*.mrpack
+            dist/*.mrpack.sha256
+            dist/*.mrpack.sha512
+            dist/*.mrpack.build.json
+      - name: Read pack version
+        id: pack
+        shell: bash
+        run: |
+          version="$(node -p "JSON.parse(require('fs').readFileSync('inlay.index.json')).versionId")"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub release
+        if: inputs.publish-github
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ steps.pack.outputs.version }}" dist/* --verify-tag --generate-notes
+      - name: Publish Modrinth version
+        if: inputs.publish-modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_PROJECT: ${{ inputs.modrinth-project-id }}
+          VERSION: ${{ steps.pack.outputs.version }}
+        shell: bash
+        run: |
+          test -n "$MODRINTH_TOKEN" && test -n "$MODRINTH_PROJECT"
+          artifact="$(find dist -maxdepth 1 -name '*.mrpack' -print -quit)"
+          metadata="$(node -e 'const m=JSON.parse(require("fs").readFileSync("inlay.index.json")); console.log(JSON.stringify({name:process.env.VERSION,version_number:process.env.VERSION,changelog:"See CHANGELOG.md",dependencies:[],game_versions:[m.dependencies.minecraft],version_type:"release",loaders:["mrpack"],featured:false,project_id:process.env.MODRINTH_PROJECT,file_parts:["file"],primary_file:"file"}))')"
+          curl --fail-with-body -X POST https://api.modrinth.com/v2/version \
+            -H "Authorization: $MODRINTH_TOKEN" \
+            -F "data=$metadata" -F "file=@$artifact"
