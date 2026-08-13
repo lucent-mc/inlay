@@ -92,6 +92,14 @@ _Avoid_: Materialization Drift, Parent Update, cache miss
 The authoritative `inlay.index.json` document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It exists at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
 _Avoid_: Parallel content schema, stricter reinterpretation, unrelated pack format
 
+**Manifest Schema Version**:
+The exact independent SemVer contract named by a Layer Manifest's `$schema`. Patch releases do not change accepted documents, minor releases add backward-compatible capabilities, and major releases may break the document model. A `lay` release declares the schema version it writes and the range it reads; the toolkit version, Pack `versionId`, and Modrinth `formatVersion` remain separate identities.
+_Avoid_: Toolkit version, Release Identity, Modrinth format version
+
+**Manifest Migration**:
+An explicit `lay migrate` rewrite of the current Layer Manifest across exactly one Manifest Schema major. Migration proceeds ancestor-first through separately maintained Layers and never rewrites an immutable parent. Larger gaps require sequential compatible toolkit versions and intermediate migrations.
+_Avoid_: Normal validation, parent normalization, automatic build rewrite
+
 **Pack Manifest**:
 A generated, distribution-specific description of a fully resolved Pack. It is release output rather than required state of a Materialized Instance.
 _Avoid_: Layer Manifest, instance metadata
