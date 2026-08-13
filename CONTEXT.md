@@ -152,6 +152,14 @@ _Avoid_: Modrinth loader dependencies, optional recommendation, implicit launche
 A dependency that was reachable before a removal or update operation but has no remaining dependents afterward. It is a cleanup candidate, not automatically disposable: library-like projects may default to removal, while useful standalone mods require confirmation.
 _Avoid_: Unused local file, excluded ancestor content, incompatible dependency
 
+**Update Candidate**:
+The newest known artifact in the installed release channel that matches a current Layer-owned declaration's exact Runtime Target and passes every required compatibility adapter, including a successful Sinytra Probe where applicable. Merely needing manual testing does not disqualify it because all updates require testing; failed or inconclusive compatibility evidence does. Candidate discovery reports but never changes the Layer.
+_Avoid_: Available version, inherited update, automated pull request
+
+**Dismissed Candidate**:
+An exact provider and candidate-version identity whose update issue was closed without adoption. Discovery never reports that same candidate again or reopens its issue; a later candidate version remains independently eligible. In combined reporting, closing an issue dismisses each exact candidate recorded in it.
+_Avoid_: Ignored mod, release-channel pin, incompatible version
+
 **Content Documentation**:
 Markdown beneath the Layer Manifest's `docs` root, which defaults to repository-root `docs`. Namespaced frontmatter associates a document with one resolved Content Path and may supply human-maintained names, licenses, dependency notes, and attribution when supported providers or embedded metadata cannot. It supplements derived metadata and never replaces file identity or provenance.
 _Avoid_: Layer Manifest, generated Pack content, provider metadata cache
