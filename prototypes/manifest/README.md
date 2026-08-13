@@ -4,7 +4,7 @@
 
 This prototype tests one question:
 
-> Can `inlay.index.json` remain a flat Modrinth index document, with only inheritance, exclusion, and distribution behavior added, while one `files[]` inventory describes both remote and repository-backed content?
+> Can `inlay.index.json` remain a flat Modrinth index document, with only inheritance, exclusion, and repository-delivery behavior added, while one `files[]` inventory describes both remote and repository-backed content?
 
 Run the interactive comparison:
 
@@ -44,13 +44,13 @@ The destination `path` participates in the same per-path composition as every ot
 
 The relative source may resolve to a Git-tracked regular file or directory. A directory expands recursively into real files. Symlinks are never included.
 
-For `distribution.delivery: "bundled"`, repository-backed entries are copied into `overrides`, `client-overrides`, or `server-overrides` and omitted from the generated `modrinth.index.json`. For `"github"`, they become commit-addressed HTTPS downloads with computed SHA-1, SHA-512, and size. Existing HTTPS entries always retain normal Modrinth behavior.
+By default, repository-backed entries are copied into `overrides`, `client-overrides`, or `server-overrides` and omitted from the generated `modrinth.index.json`. With `"delivery": "github"`, they instead become commit-addressed HTTPS downloads with computed SHA-1, SHA-512, and size. Existing HTTPS entries always retain normal Modrinth behavior.
 
 The authored document therefore needs only these top-level Inlay additions:
 
 - `$schema`
 - `extends`
 - `exclusions`
-- `distribution`
+- `delivery` (only when opting into GitHub delivery)
 
 There is no separate include list and no explicit override declaration.

@@ -73,7 +73,7 @@ if (process.argv.includes("--check")) {
       `Schema: ${result.valid ? "valid" : "INVALID"}`,
       `Parent: ${summary.parent}`,
       `Files: ${summary.remoteFiles} HTTPS, ${summary.repositoryFiles} repository-backed`,
-      `Distribution: ${summary.distribution}`,
+      `Repository delivery: ${summary.delivery}`,
       "",
       ...describeBuild(summary),
       ...(result.errors.length > 0 ? ["", ...result.errors] : []),

@@ -11,11 +11,6 @@
     },
     "size": 246810
   },
-  "distribution": {
-    "delivery": "bundled",
-    "artifactStem": "imported-root-child",
-    "releaseChannel": "release"
-  },
   "formatVersion": 1,
   "game": "minecraft",
   "versionId": "2.0.0",

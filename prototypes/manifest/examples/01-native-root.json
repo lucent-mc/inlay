@@ -1,11 +1,5 @@
 {
   "$schema": "../inlay.schema.prototype.json",
-  "distribution": {
-    "delivery": "bundled",
-    "artifactStem": "lucent-optimisations",
-    "releaseChannel": "release",
-    "releaseNotes": "releases/1.0.0.md"
-  },
   "formatVersion": 1,
   "game": "minecraft",
   "versionId": "1.0.0",

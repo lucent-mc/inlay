@@ -13,7 +13,7 @@ export interface ManifestSummary {
   remoteFiles: number;
   repositoryFiles: number;
   exclusions: number;
-  distribution: "none" | "bundled" | "github";
+  delivery: "bundled" | "github";
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -59,27 +59,21 @@ export function summarizeManifest(manifest: unknown): ManifestSummary {
       file.downloads[0].startsWith("./");
   }).length;
 
-  const distributionValue = manifest.distribution;
-  const delivery = isObject(distributionValue) ? distributionValue.delivery : undefined;
-  const distribution = delivery === "bundled" || delivery === "github"
-    ? delivery
-    : "none";
+  const delivery = manifest.delivery === "github" ? "github" : "bundled";
 
   return {
     parent,
     remoteFiles: files.length - repositoryFiles,
     repositoryFiles,
     exclusions: Array.isArray(manifest.exclusions) ? manifest.exclusions.length : 0,
-    distribution,
+    delivery,
   };
 }
 
 export function describeBuild(summary: ManifestSummary): string[] {
-  const repositoryOutcome = summary.distribution === "bundled"
+  const repositoryOutcome = summary.delivery === "bundled"
     ? `${summary.repositoryFiles} repository source(s) become override ZIP entries and are omitted from modrinth.index.json.`
-    : summary.distribution === "github"
-      ? `${summary.repositoryFiles} repository source(s) become commit-addressed HTTPS entries with computed hashes and sizes.`
-      : `${summary.repositoryFiles} repository source(s) remain available to descendants; this Layer has no Pack target.`;
+    : `${summary.repositoryFiles} repository source(s) become commit-addressed HTTPS entries with computed hashes and sizes.`;
 
   return [
     `${summary.remoteFiles} HTTPS file entry or entries pass through with Modrinth semantics.`,

@@ -20,12 +20,7 @@
       "recursive": true
     }
   ],
-  "distribution": {
-    "delivery": "github",
-    "artifactStem": "lucent-immersion",
-    "releaseChannel": "beta",
-    "releaseNotes": "releases/1.1.0-beta.1.md"
-  },
+  "delivery": "github",
   "formatVersion": 1,
   "game": "minecraft",
   "versionId": "1.1.0-beta.1",
