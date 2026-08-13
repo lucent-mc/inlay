@@ -1,0 +1,12 @@
+{
+  "$schema": "../inlay.schema.prototype.json",
+  "formatVersion": 1,
+  "game": "minecraft",
+  "versionId": "1.0.0",
+  "name": "Prototype Parent Layer",
+  "files": [],
+  "dependencies": {
+    "minecraft": "1.21.1",
+    "fabric-loader": "0.16.14"
+  }
+}
