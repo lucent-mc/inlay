@@ -4,7 +4,23 @@
   "game": "minecraft",
   "versionId": "1.0.0",
   "name": "Prototype Parent Layer",
-  "files": [],
+  "files": [
+    {
+      "path": "mods/sodium-fabric-0.8.12+mc1.21.1.jar",
+      "hashes": {
+        "sha1": "70381d969eb63c0aa09dc581ef4b9a79782c0123",
+        "sha512": "8afe411eec65a9f677611ed6390ce656e5a3572f9be473e5dca51ae882a9426a547cd2e8c793278577bb14c17e48158030b11753108926ef33698614bd94ed7f"
+      },
+      "env": {
+        "client": "required",
+        "server": "unsupported"
+      },
+      "downloads": [
+        "https://cdn.modrinth.com/data/AANobbMI/versions/KIRFiWG4/sodium-fabric-0.8.12%2Bmc1.21.1.jar"
+      ],
+      "fileSize": 1573180
+    }
+  ],
   "dependencies": {
     "minecraft": "1.21.1",
     "fabric-loader": "0.16.14"
