@@ -49,8 +49,16 @@ A Materialization Drift affecting content owned by an ancestor Layer Version. It
 _Avoid_: Override, local ownership
 
 **Materialized Instance**:
-A playable checkout that projects one environment of the resolved Layer Lineage into a launcher-agnostic Minecraft directory. Git tracks the current Layer's manifest and repository-owned source files, while generated exclusions keep materialized downloads and inherited files out of its index.
+A launcher-agnostic Minecraft directory that is both a playable installation and the current Layer's authoring working copy. Maintainers edit and test content here, then reconcile intentional changes into the Layer Manifest and repository-owned source. Git tracks that portable current-Layer state, while generated exclusions keep inherited and downloaded managed files out of its index.
 _Avoid_: Layer source, release archive
+
+**Instance Hydration**:
+The guarded reverse projection used after a successful Git pull or branch switch, or while creating a fresh child Layer, to make manifest-managed files that Git does not carry match the checked-out resolved Layer Lineage. It never overwrites unresolved Managed Instance File drift and preserves Unmanaged Instance Files; ordinary authoring flows from the Materialized Instance into the Layer rather than through hydration.
+_Avoid_: Primary authoring flow, Git checkout, arbitrary instance synchronization
+
+**Reconciled Change**:
+An intentional instance change whose complete portable current-Layer representation is internally consistent and staged in Git. Restoring inherited content and preserving an unmanaged local file do not create a Reconciled Change because neither produces portable Layer state.
+_Avoid_: Any resolved drift, unstaged edit, partial manifest hunk
 
 **Materialization Record**:
 A local, ignored, regenerable account of an instance's selected environment, resolved lineage fingerprint, and each managed path's expected presence, payload, and owning Layer Version. It detects drift but never establishes Layer ownership or portable build inputs.
