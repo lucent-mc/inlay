@@ -18,6 +18,20 @@ Validate every representative document non-interactively:
 pnpm prototype:manifest -- --check
 ```
 
+Every parent uses the same reference shape regardless of where it is hosted:
+
+```json
+{
+  "extends": {
+    "url": "https://cdn.modrinth.com/data/1KVo5zza/versions/zsRTt1bK/Fabulously.Optimized-v14.0.0-beta.4.mrpack",
+    "version": "zsRTt1bK",
+    "sha": "b7ca3332fa3b392901b002bc175febb3e8a26ff4bd8403705e7356a67b029b0ec6032cb23a3a77b1b1649428cf84da97d29b4935675a65873b3253f7bf4c8d86"
+  }
+}
+```
+
+The URL selects the resolver. Identifiers already encoded in the URL are not duplicated as fields. For a Git parent, `version` is its upstream release identity and `sha` is the resolved full commit; for an mrpack parent, `version` is its Modrinth version ID and `sha` is the exact artifact digest.
+
 ## Proposed shape
 
 Every ordinary Modrinth file entry remains unchanged:

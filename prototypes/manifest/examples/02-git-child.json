@@ -2,11 +2,8 @@
   "$schema": "../inlay.schema.prototype.json",
   "extends": {
     "url": "https://github.com/lucent-mc/lucent-optimisations.git",
-    "version": "0123456789abcdef0123456789abcdef01234567",
-    "selector": {
-      "type": "release",
-      "name": "1.0.0"
-    }
+    "version": "1.0.0",
+    "sha": "0123456789abcdef0123456789abcdef01234567"
   },
   "exclusions": [
     {

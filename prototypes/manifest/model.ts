@@ -91,7 +91,7 @@ export function summarizeManifest(manifest: unknown): ManifestSummary {
   const parentValue = manifest.extends;
   const parent = !isObject(parentValue)
     ? "none"
-    : "project" in parentValue
+    : typeof parentValue.url === "string" && /\\.mrpack(?:[?#]|$)/i.test(parentValue.url)
       ? "modrinth"
       : "git";
 

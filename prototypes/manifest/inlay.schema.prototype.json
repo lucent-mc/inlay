@@ -19,14 +19,7 @@
       "format": "uri-reference"
     },
     "extends": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/gitParent"
-        },
-        {
-          "$ref": "#/$defs/modrinthParent"
-        }
-      ]
+      "$ref": "#/$defs/parent"
     },
     "exclusions": {
       "type": "array",
@@ -242,51 +235,14 @@
       },
       "additionalProperties": false
     },
-    "selector": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "type",
-            "name"
-          ],
-          "properties": {
-            "type": {
-              "const": "tag"
-            },
-            "name": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "type",
-            "name"
-          ],
-          "properties": {
-            "type": {
-              "const": "release"
-            },
-            "name": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "gitParent": {
-      "title": "Git Layer parent",
-      "description": "A repository URL and immutable full commit. The optional selector is provenance only.",
+    "parent": {
+      "title": "Immutable parent",
+      "description": "The single parent reference. Its shape is source-agnostic: the URL selects the resolver, version records the upstream identity, and sha pins the immutable Git commit or Pack artifact.",
       "type": "object",
       "required": [
         "url",
-        "version"
+        "version",
+        "sha"
       ],
       "properties": {
         "url": {
@@ -295,52 +251,13 @@
         },
         "version": {
           "type": "string",
-          "description": "Full SHA-1 or SHA-256 Git commit ID.",
-          "pattern": "^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
-        },
-        "selector": {
-          "$ref": "#/$defs/selector"
-        }
-      },
-      "additionalProperties": false
-    },
-    "modrinthParent": {
-      "title": "Modrinth mrpack parent",
-      "description": "The exact Modrinth project/version and selected artifact tuple.",
-      "type": "object",
-      "required": [
-        "url",
-        "project",
-        "version",
-        "filename",
-        "hashes",
-        "size"
-      ],
-      "properties": {
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https://"
-        },
-        "project": {
-          "type": "string",
+          "description": "The upstream version identifier: for example an Inlay version/tag or a Modrinth version ID.",
           "minLength": 1
         },
-        "version": {
+        "sha": {
           "type": "string",
-          "minLength": 1
-        },
-        "filename": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "\\.mrpack$"
-        },
-        "hashes": {
-          "$ref": "#/$defs/hashes"
-        },
-        "size": {
-          "type": "integer",
-          "minimum": 0
+          "description": "Full Git commit ID or SHA digest of the exact Pack artifact.",
+          "pattern": "^([0-9A-Fa-f]{40}|[0-9A-Fa-f]{64}|[0-9A-Fa-f]{128})$"
         }
       },
       "additionalProperties": false

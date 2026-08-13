@@ -2,11 +2,8 @@
   "$schema": "../inlay.schema.prototype.json",
   "extends": {
     "url": "https://github.com/lucent-mc/lucent-immersion.git",
-    "version": "89abcdef0123456789abcdef0123456789abcdef",
-    "selector": {
-      "type": "tag",
-      "name": "1.1.0-beta.1"
-    }
+    "version": "1.1.0-beta.1",
+    "sha": "89abcdef0123456789abcdef0123456789abcdef"
   },
   "formatVersion": 1,
   "game": "minecraft",
