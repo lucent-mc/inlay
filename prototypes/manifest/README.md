@@ -33,7 +33,16 @@ Every parent uses the same reference shape regardless of where it is hosted:
 }
 ```
 
-The URL selects the resolver. `version` and `filename` are optional resolution hints and are omitted when the URL already identifies the exact file. Git repositories default to root `inlay.index.json`; Modrinth versions default to their single `.mrpack`. `filename` is needed only for a nonstandard manifest name, an ambiguous version, or an mrpack uploaded under another extension such as `.zip`. Resolution must yield exactly one file or the build blocks. SHA-1, SHA-256, and `fileSize` always verify the resolved bytes.
+The URL selects the resolver. Resolution follows this matrix:
+
+| Information supplied | Resolution |
+| --- | --- |
+| URL embeds version and filename | Resolve that exact file. |
+| URL embeds version; filename absent | GitHub resolves root `inlay.index.json`; Modrinth resolves exactly one `*.mrpack`. |
+| URL does not embed version | `version` is required, then apply the same filename rule. |
+| `filename` is present | Select that exact name instead of applying the well-known-name rule. |
+
+GitHub resolution blocks when `inlay.index.json` is missing. Modrinth resolution blocks when there are zero or multiple `.mrpack` candidates. `filename` supports a nonstandard manifest name, disambiguates multiple artifacts, or identifies an mrpack uploaded under another extension such as `.zip`. SHA-1, SHA-256, and `fileSize` then verify the exact resolved bytes.
 
 ## Proposed shape
 

@@ -237,7 +237,7 @@
     },
     "parent": {
       "title": "Immutable parent",
-      "description": "The single verified parent file. The URL and optional resolution hints must identify exactly one inlay.index.json or Pack artifact. Hashes and size always describe its exact bytes.",
+      "description": "The single verified parent file. Version may be omitted only when the URL itself embeds an immutable version. Filename may be omitted only when resolution finds root inlay.index.json on GitHub or exactly one .mrpack on Modrinth. Zero or multiple candidates block the build. Hashes and size always describe the exact resolved bytes.",
       "type": "object",
       "required": [
         "url",
@@ -251,12 +251,12 @@
         },
         "version": {
           "type": "string",
-          "description": "Optional resolution hint: a full Git commit ID or Modrinth version ID. It may be omitted when the URL already identifies an immutable file.",
+          "description": "Required unless the URL itself embeds the full Git commit or Modrinth version ID.",
           "minLength": 1
         },
         "filename": {
           "type": "string",
-          "description": "Optional filename override. Git repositories default to inlay.index.json; Modrinth versions default to their single .mrpack. Use this only for a nonstandard or ambiguous artifact name.",
+          "description": "Optional exact filename. If omitted, GitHub resolves root inlay.index.json and Modrinth resolves exactly one .mrpack; absence or ambiguity blocks the build.",
           "minLength": 1,
           "pattern": "^(?!.*[\\\\/])[^\\u0000]+$"
         },
