@@ -1,0 +1,17 @@
+{
+  "name": "@lucent-mc/inlay-prototype",
+  "private": true,
+  "description": "Throwaway prototypes for Inlay's layered Modrinth pack model.",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "prototype:manifest": "node prototypes/manifest/tui.ts"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0"
+  }
+}

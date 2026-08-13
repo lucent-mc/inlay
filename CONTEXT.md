@@ -89,7 +89,7 @@ A Materialization Record whose lineage fingerprint, Instance Environment, or sel
 _Avoid_: Materialization Drift, Parent Update, cache miss
 
 **Layer Manifest**:
-The authoritative `inlay.json` document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It exists at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
+The authoritative `inlay.index.json` document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It exists at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
 _Avoid_: Parallel content schema, stricter reinterpretation, unrelated pack format
 
 **Pack Manifest**:
