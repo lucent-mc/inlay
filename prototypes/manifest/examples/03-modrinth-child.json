@@ -18,9 +18,14 @@
   "files": [
     {
       "path": "config/child-settings.toml",
+      "hashes": {
+        "sha1": "ba57a3a1f75dda7227125e9b556fa137ad894100",
+        "sha256": "f9901f47227f7054b0d647c421a479738509036b92089ca01cdb0477bd708225"
+      },
       "downloads": [
-        "./config/child-settings.toml"
-      ]
+        "./prototypes/manifest/fixtures/child-settings.toml"
+      ],
+      "fileSize": 23
     }
   ],
   "dependencies": {

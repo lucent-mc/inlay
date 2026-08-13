@@ -16,9 +16,14 @@
   "files": [
     {
       "path": "config/internal-tuning.json",
+      "hashes": {
+        "sha1": "89deb8da04aa0b838d5d6c791d4b7d14ea68c52b",
+        "sha256": "2bfc3dbece592897a8d33447082e56ec6559f07fed50173e7df089fa3ff6b040"
+      },
       "downloads": [
-        "./config/internal-tuning.json"
-      ]
+        "./prototypes/manifest/fixtures/internal-tuning.json"
+      ],
+      "fileSize": 27
     }
   ],
   "dependencies": {

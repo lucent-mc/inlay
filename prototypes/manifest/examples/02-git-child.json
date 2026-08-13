@@ -28,35 +28,30 @@
   "summary": "Audiovisual enhancements layered over Lucent Optimisations.",
   "files": [
     {
-      "path": "config",
+      "path": "config/immersion.toml",
+      "hashes": {
+        "sha1": "cdf9f21921a4a4e5225d0c21c22ae1eaf064d364",
+        "sha256": "6f7352b0cc07de4c7a0999a2c20b3ab12eb0c75a1402f16b8f046143d3de70f3"
+      },
       "downloads": [
-        "./config"
-      ]
+        "./prototypes/manifest/fixtures/immersion-config.toml"
+      ],
+      "fileSize": 48
     },
     {
       "path": "options.txt",
+      "hashes": {
+        "sha1": "d790ef90731df912b885f55aa09f842c0e778108",
+        "sha256": "b8c839be7a2b163ef7c2696fd1d471ae04b790d6475ac7c89329c7cfc81796e2"
+      },
       "env": {
         "client": "required",
         "server": "unsupported"
       },
       "downloads": [
-        "./options.txt"
-      ]
-    },
-    {
-      "path": "shaderpacks/complementary.zip",
-      "hashes": {
-        "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-        "sha512": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
-      },
-      "env": {
-        "client": "optional",
-        "server": "unsupported"
-      },
-      "downloads": [
-        "https://cdn.modrinth.com/data/example/versions/1/complementary.zip"
+        "./prototypes/manifest/fixtures/immersion-options.txt"
       ],
-      "fileSize": 7654321
+      "fileSize": 33
     }
   ],
   "dependencies": {

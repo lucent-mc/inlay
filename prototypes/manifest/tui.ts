@@ -1,15 +1,20 @@
 import * as p from "@clack/prompts";
-import { readFile, readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { execFile } from "node:child_process";
+import { lstat, readFile, readdir } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import {
   createManifestValidator,
   describeBuild,
+  repositorySource,
   summarizeManifest,
+  verifyRepositoryFile,
 } from "./model.ts";
 
 const prototypeDirectory = dirname(fileURLToPath(import.meta.url));
 const examplesDirectory = join(prototypeDirectory, "examples");
+const run = promisify(execFile);
 
 async function loadJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8"));
@@ -34,10 +39,45 @@ if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
 const validate = createManifestValidator(schema);
 const examples = await loadExamples();
 
+async function validateManifest(manifest: unknown) {
+  const schemaResult = validate(manifest);
+  if (!schemaResult.valid || typeof manifest !== "object" || manifest === null) {
+    return schemaResult;
+  }
+
+  const files = "files" in manifest && Array.isArray(manifest.files)
+    ? manifest.files
+    : [];
+  const errors: string[] = [];
+
+  for (const file of files) {
+    const source = repositorySource(file);
+    if (!source) continue;
+
+    const repositoryPath = source.slice(2);
+    const absolutePath = resolve(process.cwd(), repositoryPath);
+    try {
+      const metadata = await lstat(absolutePath);
+      if (metadata.isSymbolicLink() || !metadata.isFile()) {
+        errors.push(`${source} must be a regular file, not a directory or symlink`);
+        continue;
+      }
+      await run("git", ["ls-files", "--error-unmatch", "--", repositoryPath]);
+      const integrity = verifyRepositoryFile(file, await readFile(absolutePath));
+      errors.push(...integrity.errors.map((error) => `${source}: ${error}`));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${source}: missing, not Git-tracked, or unreadable (${message})`);
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
 if (process.argv.includes("--check")) {
   let failed = false;
   for (const example of examples) {
-    const result = validate(example.manifest);
+    const result = await validateManifest(example.manifest);
     const status = result.valid ? "valid" : "INVALID";
     console.log(`${status.padEnd(7)} ${example.name}`);
     for (const error of result.errors) console.log(`        ${error}`);
@@ -67,7 +107,7 @@ if (process.argv.includes("--check")) {
     const example = examples.find((candidate) => candidate.name === selection);
     if (!example) continue;
 
-    const result = validate(example.manifest);
+    const result = await validateManifest(example.manifest);
     const summary = summarizeManifest(example.manifest);
     const report = [
       `Schema: ${result.valid ? "valid" : "INVALID"}`,

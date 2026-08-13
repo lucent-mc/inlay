@@ -118,6 +118,23 @@
         "minLength": 1
       }
     },
+    "repositoryHashes": {
+      "type": "object",
+      "required": [
+        "sha1",
+        "sha256"
+      ],
+      "properties": {
+        "sha1": {
+          "$ref": "#/$defs/sha1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9A-Fa-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
     "environmentPolicy": {
       "type": "string",
       "enum": [
@@ -175,15 +192,20 @@
     },
     "repositoryFile": {
       "title": "Repository-backed file or directory",
-      "description": "An Inlay authoring entry. A single repository-relative download source is expanded during build. Bundled builds omit it from modrinth.index.json and place its files in the appropriate override directory; GitHub-hosted builds replace it with commit-addressed HTTPS entries and computed hashes and sizes.",
+      "description": "An Inlay authoring entry for one Git-tracked regular file. A build verifies its repository-relative source against the declared SHA-1, SHA-256, and byte size. Bundled builds omit it from modrinth.index.json and place it in the appropriate override directory; GitHub-hosted builds replace it with a commit-addressed HTTPS entry and add the SHA-512 required by Modrinth.",
       "type": "object",
       "required": [
         "path",
-        "downloads"
+        "hashes",
+        "downloads",
+        "fileSize"
       ],
       "properties": {
         "path": {
           "$ref": "#/$defs/contentPath"
+        },
+        "hashes": {
+          "$ref": "#/$defs/repositoryHashes"
         },
         "env": {
           "type": "object",
@@ -203,7 +225,7 @@
         },
         "downloads": {
           "type": "array",
-          "description": "Exactly one path relative to the repository root. The source may be a regular file or directory; directories expand recursively.",
+          "description": "Exactly one regular-file path relative to the repository root.",
           "minItems": 1,
           "maxItems": 1,
           "items": {
@@ -211,6 +233,11 @@
             "format": "uri-reference",
             "pattern": "^\\./(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$"
           }
+        },
+        "fileSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
         }
       },
       "additionalProperties": false

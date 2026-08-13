@@ -8,34 +8,40 @@
   "files": [
     {
       "path": "config/sodium-options.json",
-      "downloads": [
-        "./config/sodium-options.json"
-      ]
-    },
-    {
-      "path": "resourcepacks/lucent",
-      "env": {
-        "client": "required",
-        "server": "unsupported"
-      },
-      "downloads": [
-        "./resourcepacks/lucent"
-      ]
-    },
-    {
-      "path": "mods/sodium.jar",
       "hashes": {
-        "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-        "sha512": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+        "sha1": "26367c14b20dacf8081248c7af85aa9a4db1d6d9",
+        "sha256": "1315c92fb7261972160132d42b1ce71e8f51c1a064dc485432b048f16e1321ec"
+      },
+      "downloads": [
+        "./prototypes/manifest/fixtures/sodium-options.json"
+      ],
+      "fileSize": 56
+    },
+    {
+      "path": "resourcepacks/lucent/pack.mcmeta",
+      "hashes": {
+        "sha1": "12824dd941192c13f58d42ebdfd5b760c3c241ec",
+        "sha256": "b7b33b0da467563b7ae91cbaf1496d60bbd2b66f80ac6156438c0863a3972970"
       },
       "env": {
         "client": "required",
         "server": "unsupported"
       },
       "downloads": [
-        "https://cdn.modrinth.com/data/example/versions/1/sodium.jar"
+        "./prototypes/manifest/fixtures/lucent-pack.mcmeta"
       ],
-      "fileSize": 1234567
+      "fileSize": 91
+    },
+    {
+      "path": "config/remote-sodium-options.json",
+      "hashes": {
+        "sha1": "26367c14b20dacf8081248c7af85aa9a4db1d6d9",
+        "sha512": "9c1e9f689302dd6f79cf9fc2dbb16ecdab7ee6459440bc3caac4a9ffab95c791f19b144233b587f2d67caa408bbed1ad65b1b00a52772c5ed6e56d7390081ff5"
+      },
+      "downloads": [
+        "https://raw.githubusercontent.com/lucent-mc/inlay/f656faf91294da52855e7916c8975a89d7fffa23/prototypes/manifest/fixtures/sodium-options.json"
+      ],
+      "fileSize": 56
     }
   ],
   "dependencies": {

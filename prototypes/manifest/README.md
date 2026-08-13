@@ -36,13 +36,18 @@ Inlay adds a repository-backed authoring form to the same array:
 ```json
 {
   "path": "config",
-  "downloads": ["./config"]
+  "hashes": {
+    "sha1": "…",
+    "sha256": "…"
+  },
+  "downloads": ["./config/example.toml"],
+  "fileSize": 123
 }
 ```
 
 The destination `path` participates in the same per-path composition as every other file. If the resolved parent already owns that path, the current entry is an implicit override. Otherwise it is an addition.
 
-The relative source may resolve to a Git-tracked regular file or directory. A directory expands recursively into real files. Symlinks are never included.
+The relative source must resolve to one Git-tracked regular file. Its SHA-1, SHA-256, and byte size must match the manifest or the build fails. Symlinks are never included. A CLI directory selection is authoring convenience only: it expands the selected directory into explicit per-file entries before writing the manifest.
 
 By default, repository-backed entries are copied into `overrides`, `client-overrides`, or `server-overrides` and omitted from the generated `modrinth.index.json`. With `"delivery": "github"`, they instead become commit-addressed HTTPS downloads with computed SHA-1, SHA-512, and size. Existing HTTPS entries always retain normal Modrinth behavior.
 

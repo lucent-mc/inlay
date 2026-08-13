@@ -1,5 +1,6 @@
 import Ajv2020, { type ErrorObject } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import { createHash } from "node:crypto";
 
 type JsonObject = Record<string, unknown>;
 
@@ -16,8 +17,51 @@ export interface ManifestSummary {
   delivery: "bundled" | "github";
 }
 
+export interface IntegrityResult {
+  valid: boolean;
+  errors: string[];
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function repositorySource(file: unknown): string | null {
+  if (!isObject(file) || !Array.isArray(file.downloads)) return null;
+  const [source] = file.downloads;
+  return file.downloads.length === 1 &&
+      typeof source === "string" &&
+      source.startsWith("./")
+    ? source
+    : null;
+}
+
+export function verifyRepositoryFile(
+  file: unknown,
+  content: Uint8Array,
+): IntegrityResult {
+  if (!isObject(file) || !isObject(file.hashes)) {
+    return { valid: false, errors: ["repository file has no hashes object"] };
+  }
+
+  const expectedSize = file.fileSize;
+  const expectedSha1 = file.hashes.sha1;
+  const expectedSha256 = file.hashes.sha256;
+  const actualSha1 = createHash("sha1").update(content).digest("hex");
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  const errors: string[] = [];
+
+  if (expectedSize !== content.byteLength) {
+    errors.push(`fileSize is ${String(expectedSize)} but source is ${content.byteLength} bytes`);
+  }
+  if (expectedSha1 !== actualSha1) {
+    errors.push(`sha1 is ${String(expectedSha1)} but source hashes to ${actualSha1}`);
+  }
+  if (expectedSha256 !== actualSha256) {
+    errors.push(`sha256 is ${String(expectedSha256)} but source hashes to ${actualSha256}`);
+  }
+
+  return { valid: errors.length === 0, errors };
 }
 
 function formatError(error: ErrorObject): string {
@@ -52,12 +96,7 @@ export function summarizeManifest(manifest: unknown): ManifestSummary {
       : "git";
 
   const files = Array.isArray(manifest.files) ? manifest.files : [];
-  const repositoryFiles = files.filter((file) => {
-    if (!isObject(file) || !Array.isArray(file.downloads)) return false;
-    return file.downloads.length === 1 &&
-      typeof file.downloads[0] === "string" &&
-      file.downloads[0].startsWith("./");
-  }).length;
+  const repositoryFiles = files.filter((file) => repositorySource(file) !== null).length;
 
   const delivery = manifest.delivery === "github" ? "github" : "bundled";
 
