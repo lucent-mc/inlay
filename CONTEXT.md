@@ -1,4 +1,4 @@
-# Layered Modpacks
+# Inlay
 
 This context describes how independently maintained modpack content composes into playable releases without losing ownership of each contribution.
 
@@ -89,12 +89,16 @@ A Materialization Record whose lineage fingerprint, Instance Environment, or sel
 _Avoid_: Materialization Drift, Parent Update, cache miss
 
 **Layer Manifest**:
-The authoritative document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It has one well-known filename at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
+The authoritative `inlay.json` document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It exists at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
 _Avoid_: Parallel content schema, stricter reinterpretation, unrelated pack format
 
 **Pack Manifest**:
 A generated, distribution-specific description of a fully resolved Pack. It is release output rather than required state of a Materialized Instance.
 _Avoid_: Layer Manifest, instance metadata
+
+**Build Record**:
+A generated account of the exact toolkit version, source revision, resolved Layer Lineage, Delivery Mode, canonical archive parameters, and resulting Pack artifact identity. It explains reproducibility but is not an input to composition or publication.
+_Avoid_: Materialization Record, Layer Manifest, release notes
 
 **Tracked Content**:
 An approved regular file or downloadable artifact that belongs to a Layer through an exact declaration or recursive Directory Inclusion. Repository-owned content must also be tracked by Git, but Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
@@ -140,13 +144,29 @@ _Avoid_: Warning, Parent Update choice, best-effort import
 The Distribution Target's single choice for how all repository-owned Tracked Content reaches an installed Pack: bundled inside the Pack archive or downloaded from immutable, hash-verified locations.
 _Avoid_: Ownership, Distribution Target
 
+**Preview Build**:
+A local, non-publishable Pack artifact that may snapshot uncommitted current-Layer source when using bundled Delivery Mode. It is visibly distinguished from a Release Build and never establishes a release identity.
+_Avoid_: Release Build, dirty release, publication candidate
+
+**Release Build**:
+A publishable Pack artifact produced from one exact clean Git commit. Git-ignored local state does not affect cleanliness, while tracked changes, staged changes, and non-ignored untracked files make the checkout ineligible.
+_Avoid_: Preview Build, rebuilt publication, working-tree snapshot
+
+**Release Identity**:
+The Layer Manifest's SemVer `versionId`, used unchanged as the generated Pack version, Git version tag, and Modrinth version number. One Release Identity names immutable artifact bytes and publication metadata; any conflict requires a new version.
+_Avoid_: Layer Version, destination-specific version, mutable release
+
+**Release Channel**:
+The explicit Modrinth classification of a Release Build as `release`, `beta`, or `alpha`. A stable Release Identity must use `release`; prerelease identities choose `beta` or `alpha` without inference from their SemVer label.
+_Avoid_: SemVer prerelease label, Publication Destination, update channel
+
 **Pack**:
 The fully resolved client-and-server content model produced by composing a Layer with its ancestors. It preserves both Environment Slots and may be published through one or more Distribution Targets or projected into a playable Materialized Instance.
 _Avoid_: Layer, delta, single-environment installation
 
 **Distribution Target**:
-An optional destination and format through which a Pack is released for consumption.
-_Avoid_: Layer, source
+An optional standard `.mrpack` output configuration for a Layer, including its Delivery Mode, artifact filename stem, and release metadata. GitHub and Modrinth may independently publish the one resulting Release Build.
+_Avoid_: Publication Destination, Layer, source
 
 **Publication Destination**:
 An independently selectable service, such as GitHub Releases or Modrinth, to which an already built Pack artifact is uploaded.
