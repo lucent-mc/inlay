@@ -2,6 +2,7 @@ import { lstat, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { GitAdapter } from "../adapters/git.js";
 import { MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
+import { isImplicitContentCandidate } from "../lib/content-candidates.js";
 import { digest } from "../lib/hash.js";
 import { resolveInside } from "../lib/path.js";
 import { isRepositoryFile, readManifest } from "../manifest/index.js";
@@ -100,7 +101,8 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
   }
 
   for (const untracked of await git.untracked()) {
-    if (known.has(untracked.toLowerCase()) || untracked.startsWith(".inlay/")) continue;
+    if (known.has(untracked.toLowerCase()) || !isImplicitContentCandidate(untracked, manifest.docs ?? "docs"))
+      continue;
     try {
       const details = await lstat(resolveInside(root, untracked));
       if (!details.isFile() || details.isSymbolicLink()) continue;

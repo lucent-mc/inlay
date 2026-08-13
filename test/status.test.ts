@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -49,4 +49,47 @@ test("status orders eligible untracked files before changed current-layer files"
     ],
   );
   assert.equal(report.unresolved, 2);
+});
+
+test("status excludes repository infrastructure from implicit Layer candidates", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-internal-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  const files = [
+    ".github/workflows/release.yml",
+    ".inlay/changes/intent.md",
+    ".vscode/settings.json",
+    "docs/content.md",
+    "tests/check.ts",
+    "node_modules/example/index.js",
+    "README.md",
+    "LICENSE",
+    "package.json",
+    "pnpm-lock.yaml",
+    "config/old-value.toml.bak",
+    "config/eligible.json",
+    "scripts/crafttweaker.zs",
+  ];
+  for (const relative of files) {
+    await mkdir(path.dirname(path.join(root, relative)), { recursive: true });
+    await writeFile(path.join(root, relative), `${relative}\n`);
+  }
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => entry.path),
+    ["config/eligible.json", "scripts/crafttweaker.zs"],
+  );
 });
