@@ -7,5 +7,31 @@ export const JSON_RESULT_SCHEMA_VERSION = 1 as const;
 export const MATERIALIZATION_RECORD = ".inlay/materialization.json";
 export const LOCAL_EXCLUDE_MARKER_START = "# inlay:start";
 export const LOCAL_EXCLUDE_MARKER_END = "# inlay:end";
+export const DEFAULT_LOCAL_EXCLUDES = [
+  "/.cache/",
+  "/.fabric/",
+  "/.quilt/",
+  "/assets/",
+  "/backups/",
+  "/cache/",
+  "/crash-reports/",
+  "/downloads/",
+  "/libraries/",
+  "/logs/",
+  "/natives/",
+  "/saves/",
+  "/screenshots/",
+  "/server-resource-packs/",
+  "/versions/",
+  "/webcache/",
+  "/instance.json",
+  "/launcher_accounts.json",
+  "/launcher_profiles.json",
+  "/realms_persistence.json",
+  "/servers.dat",
+  "/servers.dat_old",
+  "/usercache.json",
+  "/usernamecache.json",
+] as const;
 export const MODRINTH_UPLOAD_LIMIT = 524_288_000;
 export const GITHUB_RELEASE_UPLOAD_LIMIT = 2_147_483_647;

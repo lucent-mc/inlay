@@ -47,6 +47,6 @@ export async function forkLayer(
   await writeManifest(root, manifest);
   const record = await materialize(root, options.environment ?? "client");
   const git = new GitAdapter(root);
-  if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], false);
+  if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], true);
   return { manifest, record };
 }

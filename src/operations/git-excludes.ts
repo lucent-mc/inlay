@@ -1,7 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GitAdapter } from "../adapters/git.js";
-import { LOCAL_EXCLUDE_MARKER_END, LOCAL_EXCLUDE_MARKER_START } from "../constants.js";
+import {
+  DEFAULT_LOCAL_EXCLUDES,
+  LOCAL_EXCLUDE_MARKER_END,
+  LOCAL_EXCLUDE_MARKER_START,
+} from "../constants.js";
 
 export async function updateGeneratedExcludes(root: string, paths: string[]): Promise<void> {
   const git = new GitAdapter(root);
@@ -24,6 +28,7 @@ export async function updateGeneratedExcludes(root: string, paths: string[]): Pr
     "/.inlay/materialization.json",
     "/.inlay/transactions/",
     "/dist/",
+    ...DEFAULT_LOCAL_EXCLUDES,
     ...[...new Set(paths)].sort().map((item) => `/${item}`),
     LOCAL_EXCLUDE_MARKER_END,
   ].join("\n");

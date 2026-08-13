@@ -79,7 +79,7 @@ export async function initialize(root: string, options: InitOptions): Promise<La
     await writeManifest(root, manifest);
     await updateGeneratedExcludes(root, []);
     const git = new GitAdapter(root);
-    if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], false);
+    if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], true);
   }
   return manifest;
 }
