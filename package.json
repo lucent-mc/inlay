@@ -7,7 +7,8 @@
   "scripts": {
     "prototype:manifest": "node prototypes/manifest/tui.ts",
     "prototype:reconcile": "node prototypes/reconcile/tui.ts",
-    "prototype:reconcile-switchyard": "node prototypes/reconcile-switchyard/tui.ts"
+    "prototype:reconcile-switchyard": "node prototypes/reconcile-switchyard/tui.ts",
+    "prototype:field-ledger": "node prototypes/field-ledger/tui.ts"
   },
   "devDependencies": {
     "ajv": "^8.20.0",
