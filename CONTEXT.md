@@ -45,12 +45,48 @@ A child-owned declaration whose Content Path already exists in its Layer Lineage
 _Avoid_: Inherited Drift, upstream edit
 
 **Inherited Drift**:
-A local change to inherited content that has not been adopted as an Override or recorded in its owning Layer. It blocks builds until the parent reference contains the change, the inherited content is restored, or the current Layer adopts it.
+A Materialization Drift affecting content owned by an ancestor Layer Version. It blocks builds until the Parent Reference contains the change, the inherited content is restored, or the current Layer adopts it as an Override.
 _Avoid_: Override, local ownership
 
 **Materialized Instance**:
-A playable checkout containing the resolved contents of its complete Layer Lineage while Git tracks only the current Layer's owned contributions.
+A playable checkout that projects one environment of the resolved Layer Lineage into a launcher-agnostic Minecraft directory. Git tracks the current Layer's manifest and repository-owned source files, while generated exclusions keep materialized downloads and inherited files out of its index.
 _Avoid_: Layer source, release archive
+
+**Materialization Record**:
+A local, ignored, regenerable account of an instance's selected environment, resolved lineage fingerprint, and each managed path's expected presence, payload, and owning Layer Version. It detects drift but never establishes Layer ownership or portable build inputs.
+_Avoid_: Layer Manifest, lockfile, committed provenance
+
+**Instance Environment**:
+The local choice of client or server used to project both resolved Environment Slots into one Materialized Instance. It does not alter the Pack or Layer Manifest.
+_Avoid_: Runtime Target, Content Scope, Environment Slot
+
+**Materialization Plan**:
+The derived projection of a resolved Pack into one Instance Environment, including each applicable path's owner, payload, and required-or-optional presence policy. It is applied transactionally and is never a portable source of truth.
+_Avoid_: Pack, Layer Manifest, Materialization Record
+
+**Optional Content**:
+Tracked Content whose Modrinth environment policy permits absence during installation. A child may inherit it unchanged, include it by overriding its policy to required, or exclude it; local presence never chooses among these.
+_Avoid_: Untracked content, local selection, implicit Exclusion
+
+**Managed Instance File**:
+A file whose expected payload and presence policy were established by the last successful materialization. Required content must be present, Optional Content may be absent, and existing managed bytes may be changed or removed automatically only while they remain unchanged.
+_Avoid_: Tracked Content, current Layer source file, arbitrary instance file
+
+**Unmanaged Instance File**:
+An untracked local file that is neither current Layer source nor part of the last successful materialization. Reconciliation preserves it, never packages it, and ignores it unless it collides with a resolved managed path.
+_Avoid_: Managed Instance File, inherited content, implicit inclusion
+
+**Provenance Entry**:
+The part of a Materialization Record that associates one managed Content Path with its owning Layer Version, source declaration and scope, environment policy, hashes, size, and last applied state. It reports derived ownership but never creates it.
+_Avoid_: Content declaration, Parent Reference, file history
+
+**Materialization Drift**:
+A mismatch between a Managed Instance File's recorded state and its on-disk presence, type, or payload. It blocks builds until restored or represented by the current Layer; source edits and Unmanaged Instance Files are not Materialization Drift.
+_Avoid_: Git working change, untracked runtime file, stale Materialization Record
+
+**Stale Materialization**:
+A Materialization Record whose lineage fingerprint, Instance Environment, or selected current-Layer source membership no longer matches the derived Materialization Plan. It requires reconciliation but does not imply that any managed payload drifted.
+_Avoid_: Materialization Drift, Parent Update, cache miss
 
 **Layer Manifest**:
 The authoritative document describing a Layer through a strict extension of the Modrinth Pack Manifest schema with inheritance declarations. Every inherited field retains Modrinth's validation and semantics; only Layer fields and composition add behavior. It has one well-known filename at the root of a Layer repository, and parent resolution never searches for it or accepts a custom path.
