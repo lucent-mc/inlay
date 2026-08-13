@@ -38,6 +38,12 @@ jobs:
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100
             });
+            try {
+              await github.rest.issues.getLabel({owner: context.repo.owner, repo: context.repo.repo, name: 'inlay:update'});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({owner: context.repo.owner, repo: context.repo.repo, name: 'inlay:update', color: '5f4b8b', description: 'Viable update reported by Inlay'});
+            }
             const groups = process.env.GROUPING === 'combined'
               ? [['combined', candidates]]
               : candidates.map(candidate => [candidate.projectId, [candidate]]);

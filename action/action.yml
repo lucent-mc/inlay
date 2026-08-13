@@ -14,6 +14,9 @@ outputs:
 runs:
   using: composite
   steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
     - id: lay
       shell: bash
       env:
