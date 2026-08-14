@@ -12,6 +12,7 @@ export async function commitStaged(
 ) {
   const git = new GitAdapter(root);
   const checked = await checkPack(root);
+  const diagnostics = checked.diagnostics.filter((item) => item.severity !== "info");
   const staged = await git.staged();
   if (staged.length === 0)
     throw new InlayError(error("nothing-staged", "No staged files are available to commit."));
@@ -55,10 +56,15 @@ export async function commitStaged(
     .filter(Boolean)
     .join("\n");
   if (options.interactive && options.dryRun !== true) {
+    if (diagnostics.length > 0) {
+      p.note(diagnostics.map((item) => `[${item.code}] ${item.message}`).join("\n"), "Validation warnings");
+    }
     p.note(`${subject}\n\n${body}`, "Commit preview");
     const accepted = await p.confirm({ message: "Commit all staged changes now?", initialValue: false });
-    if (p.isCancel(accepted) || !accepted) return { committed: false, staged, subject, body };
+    if (p.isCancel(accepted) || !accepted) {
+      return { committed: false, staged, subject, body, diagnostics };
+    }
   }
   if (options.dryRun !== true) await git.run(["commit", "-m", subject, "-m", body]);
-  return { committed: options.dryRun !== true, staged, subject, body };
+  return { committed: options.dryRun !== true, staged, subject, body, diagnostics };
 }

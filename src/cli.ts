@@ -411,14 +411,15 @@ program
   .option("-m, --message <context>", "append maintainer context to the generated body")
   .action(async (local, command) => {
     const options = globalOptions(command);
-    await execute("commit", options, async () => ({
-      data: await commitStaged(options.root, {
+    await execute("commit", options, async () => {
+      const outcome = await commitStaged(options.root, {
         ...(local.message === undefined ? {} : { context: String(local.message) }),
         interactive: options.interactive,
         ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
-      }),
-      changed: options.dryRun !== true,
-    }));
+      });
+      const { diagnostics, ...data } = outcome;
+      return { data, diagnostics, changed: data.committed };
+    });
   });
 
 program

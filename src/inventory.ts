@@ -1,6 +1,7 @@
 import { unzipSync } from "fflate";
 import { ModrinthAdapter, type ModrinthDependency, modrinthIdentityFromUrl } from "./adapters/modrinth.js";
-import { error, warning } from "./diagnostics.js";
+import { warning } from "./diagnostics.js";
+import { resolveDependencyClaim } from "./lib/dependency-adapters.js";
 import type { Diagnostic, ResolvedContent, ResolvedPack } from "./types.js";
 
 export interface ContentMetadata {
@@ -110,9 +111,10 @@ export async function deriveInventory(
   for (const item of content) {
     for (const dependency of item.dependencies) {
       if (!dependency.project_id) continue;
-      if (dependency.dependency_type === "required" && !installedProjects.has(dependency.project_id)) {
+      const resolution = resolveDependencyClaim(dependency.project_id, installedProjects);
+      if (dependency.dependency_type === "required" && resolution.kind === "missing") {
         diagnostics.push(
-          error(
+          warning(
             "dependency-missing",
             `${item.name ?? item.path} requires missing Modrinth project ${dependency.project_id}.`,
             {
@@ -121,9 +123,9 @@ export async function deriveInventory(
           ),
         );
       }
-      if (dependency.dependency_type === "incompatible" && installedProjects.has(dependency.project_id)) {
+      if (dependency.dependency_type === "incompatible" && resolution.kind !== "missing") {
         diagnostics.push(
-          error(
+          warning(
             "dependency-incompatible",
             `${item.name ?? item.path} is incompatible with installed project ${dependency.project_id}.`,
             {
