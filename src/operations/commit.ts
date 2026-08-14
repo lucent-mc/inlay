@@ -15,6 +15,13 @@ function displayName(change: ChangeEntry, inventory: ContentMetadata[]): string 
   return metadata?.name ?? change.path.split("/").at(-1) ?? change.path;
 }
 
+function displayVersion(change: ChangeEntry, inventory: ContentMetadata[]): string {
+  const metadata = inventory.find(
+    (item) => item.path.toLocaleLowerCase("en-US") === change.path.toLocaleLowerCase("en-US"),
+  );
+  return metadata?.version ? ` (${metadata.version})` : "";
+}
+
 function pluralKind(kind: string): string {
   if (kind === "resource-pack") return "resource packs";
   if (kind === "shader-pack") return "shader packs";
@@ -54,7 +61,7 @@ function semanticBody(
     "Layer changes:",
     ...changes.map(
       (change) =>
-        `- ${pastTense[change.action]} ${change.kind}: ${displayName(change, inventory)} (${change.path})`,
+        `- ${pastTense[change.action]} ${change.kind}: ${displayName(change, inventory)}${displayVersion(change, inventory)}`,
     ),
     ...(otherPaths.length > 0 ? ["", "Other staged paths:", ...otherPaths.map((item) => `- ${item}`)] : []),
     ...(context ? ["", context] : []),

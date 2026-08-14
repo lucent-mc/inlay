@@ -9,6 +9,7 @@ export interface ContentMetadata {
   owner: string;
   projectId?: string;
   versionId?: string;
+  version?: string;
   name?: string;
   kind?: string;
   license?: string;
@@ -70,6 +71,7 @@ export async function deriveInventory(
           owner: `${item.owner.name}@${item.owner.versionId}`,
           projectId: project.id,
           versionId: version.id,
+          version: version.version_number,
           name: project.title,
           kind: project.project_type,
           license: project.license.id,
