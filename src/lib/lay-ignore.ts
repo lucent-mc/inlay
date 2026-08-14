@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import createIgnore from "ignore";
-import { LAYIGNORE_FILENAME } from "../constants.js";
+import { DEFAULT_LAYIGNORE, LAYIGNORE_FILENAME } from "../constants.js";
 import { repositoryRelativePath } from "./path.js";
 
 export interface LayIgnore {
@@ -21,4 +21,22 @@ export async function readLayIgnore(root: string): Promise<LayIgnore> {
       return matcher.ignores(repositoryRelativePath(candidate));
     },
   };
+}
+
+function literalPattern(candidate: string): string {
+  const escaped = repositoryRelativePath(candidate).replaceAll(/[\\*?[\] ]/gu, "\\$&");
+  return `/${escaped}`;
+}
+
+/** Persist one exact path as repository-owned implicit-discovery policy. */
+export async function preserveWithLayIgnore(root: string, candidate: string): Promise<void> {
+  const filename = path.join(root, LAYIGNORE_FILENAME);
+  let contents = DEFAULT_LAYIGNORE;
+  try {
+    contents = await readFile(filename, "utf8");
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+  }
+  const separator = contents.length > 0 && !contents.endsWith("\n") ? "\n" : "";
+  await writeFile(filename, `${contents}${separator}${literalPattern(candidate)}\n`);
 }

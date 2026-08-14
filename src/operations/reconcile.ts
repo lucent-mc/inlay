@@ -2,9 +2,10 @@ import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import { GitAdapter } from "../adapters/git.js";
-import { MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
+import { LAYIGNORE_FILENAME, MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
 import { hashes } from "../lib/hash.js";
+import { preserveWithLayIgnore } from "../lib/lay-ignore.js";
 import { resolveInside } from "../lib/path.js";
 import { isRepositoryFile, readManifest, writeManifest } from "../manifest/index.js";
 import { composeLayers } from "../resolution/compose.js";
@@ -19,7 +20,7 @@ function choices(entry: StatusEntry): Array<{ value: ReconcileAction; label: str
   if (entry.state === "untracked") {
     return [
       { value: "add", label: "Add to this Layer", hint: "declare, hash, and stage" },
-      { value: "preserve", label: "Preserve locally", hint: "untracked and unpackaged" },
+      { value: "preserve", label: "Ignore in this Layer", hint: "keep local and update .layignore" },
     ];
   }
   if (entry.state === "updated") {
@@ -119,7 +120,14 @@ export async function reconcilePath(
       ),
     );
   }
-  if (action === "preserve") return { action, staged: [] };
+  if (action === "preserve") {
+    const staged = [LAYIGNORE_FILENAME];
+    if (options.dryRun !== true) {
+      await preserveWithLayIgnore(root, entry.sourcePath ?? entry.path);
+      await new GitAdapter(root).stage(staged, true);
+    }
+    return { action, staged };
+  }
   if (options.dryRun === true)
     return { action, staged: action === "restore" ? [] : [MANIFEST_FILENAME, entry.path] };
 
