@@ -277,8 +277,8 @@ test("status projects runtime configs into a detected Configured Defaults tree",
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
-    [["configureddefaults/config/example/settings.json", "config/example/settings.json", "untracked"]],
+    report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [["config/example/settings.json", "configureddefaults/config/example/settings.json", "untracked"]],
   );
 });
 
@@ -315,8 +315,8 @@ test("status reports runtime drift against a declared default at the authorable 
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
-    [[defaultPath, "config/example/settings.json", "updated"]],
+    report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [["config/example/settings.json", defaultPath, "updated"]],
   );
 });
 
@@ -342,7 +342,7 @@ test("status does not activate projection from a generated empty YOSBR skeleton"
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath]),
+    report.entries.map((entry) => [entry.path, entry.declarationPath]),
     [["config/example.json", undefined]],
   );
 });
@@ -376,10 +376,10 @@ test("status keeps Config Manager control flags direct while projecting ordinary
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath]),
+    report.entries.map((entry) => [entry.path, entry.declarationPath]),
     [
       ["config/CONFIG_MANAGER_RESET_FLAG", undefined],
-      ["config/modpack_defaults/config/example.json", "config/example.json"],
+      ["config/example.json", "config/modpack_defaults/config/example.json"],
     ],
   );
 });
@@ -447,8 +447,8 @@ test(".layignore cannot hide runtime drift for an explicit defaults declaration"
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
-    [[defaultPath, "config/example.json", "updated"]],
+    report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [["config/example.json", defaultPath, "updated"]],
   );
 });
 
@@ -486,7 +486,37 @@ test("status detects newer runtime drift after a matching default was staged", a
   const report = await status(root);
 
   assert.deepEqual(
-    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
-    [[defaultPath, "config/example.json", "updated"]],
+    report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [["config/example.json", defaultPath, "updated"]],
+  );
+});
+
+test("status discovers authored Configured Defaults files even when Git ignores them", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-existing-defaults-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  const defaultPath = "configureddefaults/config/example.json";
+  await mkdir(path.dirname(path.join(root, defaultPath)), { recursive: true });
+  await writeFile(path.join(root, defaultPath), "{}\n");
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "example.json"), "{}\n");
+  await writeFile(path.join(root, ".git", "info", "exclude"), "/configureddefaults/\n");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [[defaultPath, undefined, "untracked"]],
   );
 });
