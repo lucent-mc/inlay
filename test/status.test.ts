@@ -73,8 +73,11 @@ test("status excludes repository infrastructure from implicit Layer candidates",
     "docs/content.md",
     "tests/check.ts",
     "node_modules/example/index.js",
+    "logs/latest.log",
+    "saves/World/level.dat",
     "README.md",
     "LICENSE",
+    "instance.json",
     "package.json",
     "pnpm-lock.yaml",
     "config/old-value.toml.bak",
@@ -85,6 +88,9 @@ test("status excludes repository infrastructure from implicit Layer candidates",
     await mkdir(path.dirname(path.join(root, relative)), { recursive: true });
     await writeFile(path.join(root, relative), `${relative}\n`);
   }
+  await run("git", ["add", "--", "logs/latest.log", "saves/World/level.dat", "instance.json"], {
+    cwd: root,
+  });
 
   const report = await status(root);
 
@@ -118,5 +124,333 @@ test("status includes Git-tracked files that are not declared by the Layer", asy
   assert.deepEqual(
     report.entries.map((entry) => [entry.path, entry.state]),
     [["config/tracked.json", "untracked"]],
+  );
+});
+
+test("status discovers Minecraft downloads even when Git ignores their directory", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-ignored-mods-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await writeFile(path.join(root, ".gitignore"), "/mods/\n");
+  await mkdir(path.join(root, "mods"));
+  await writeFile(path.join(root, "mods", "example.jar"), "jar");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.state]),
+    [["mods/example.jar", "untracked"]],
+  );
+});
+
+test("status discovers runtime config even when Git ignores it", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-ignored-config-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await writeFile(path.join(root, ".gitignore"), "/config/\n");
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "example.json"), "{}\n");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.state]),
+    [["config/example.json", "untracked"]],
+  );
+});
+
+test("status applies repository-owned .layignore patterns only to implicit candidates", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-layignore-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await writeFile(path.join(root, ".layignore"), "/scripts/\n");
+  await mkdir(path.join(root, "scripts"));
+  await writeFile(path.join(root, "scripts", "ignored.zs"), "ignored\n");
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "eligible.json"), "{}\n");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => entry.path),
+    ["config/eligible.json"],
+  );
+});
+
+test("status projects runtime configs into a detected Configured Defaults tree", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-configured-defaults-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: "mods/configured-defaults.jar",
+          hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+          downloads: [
+            "https://cdn.modrinth.com/data/SISoSFPP/versions/immutable-version/configured-defaults.jar",
+          ],
+          fileSize: 1,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await mkdir(path.join(root, "configureddefaults"));
+  await mkdir(path.join(root, "config", "example"), { recursive: true });
+  await writeFile(path.join(root, "config", "example", "settings.json"), '{"enabled":true}\n');
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
+    [["configureddefaults/config/example/settings.json", "config/example/settings.json", "untracked"]],
+  );
+});
+
+test("status reports runtime drift against a declared default at the authorable path", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-default-drift-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  const defaults = new TextEncoder().encode('{"enabled":true}\n');
+  const identity = hashes(defaults);
+  const defaultPath = "configureddefaults/config/example/settings.json";
+  await mkdir(path.dirname(path.join(root, defaultPath)), { recursive: true });
+  await writeFile(path.join(root, defaultPath), defaults);
+  await mkdir(path.join(root, "config", "example"), { recursive: true });
+  await writeFile(path.join(root, "config", "example", "settings.json"), '{"enabled":false}\n');
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: defaultPath,
+          hashes: { sha1: identity.sha1, sha256: identity.sha256 },
+          downloads: [`./${defaultPath}`],
+          fileSize: defaults.byteLength,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
+    [[defaultPath, "config/example/settings.json", "updated"]],
+  );
+});
+
+test("status does not activate projection from a generated empty YOSBR skeleton", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-yosbr-skeleton-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await mkdir(path.join(root, "config", "yosbr", "config"), { recursive: true });
+  await writeFile(path.join(root, "config", "yosbr", "options.txt"), "");
+  await writeFile(path.join(root, "config", "example.json"), "{}\n");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath]),
+    [["config/example.json", undefined]],
+  );
+});
+
+test("status keeps Config Manager control flags direct while projecting ordinary configs", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-config-manager-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: "mods/config-manager.jar",
+          hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+          downloads: ["https://cdn.modrinth.com/data/jlNms3Jp/versions/immutable-version/config-manager.jar"],
+          fileSize: 1,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "CONFIG_MANAGER_RESET_FLAG"), "");
+  await writeFile(path.join(root, "config", "example.json"), "{}\n");
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath]),
+    [
+      ["config/CONFIG_MANAGER_RESET_FLAG", undefined],
+      ["config/modpack_defaults/config/example.json", "config/example.json"],
+    ],
+  );
+});
+
+test("status never offers the Default Options journal for packaging", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-default-options-journal-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: "mods/default-options.jar",
+          hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+          downloads: [
+            "https://cdn.modrinth.com/data/WEg59z5b/versions/immutable-version/default-options.jar",
+          ],
+          fileSize: 1,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await writeFile(path.join(root, "defaultoptions.journal.json"), "{}\n");
+
+  assert.deepEqual((await status(root)).entries, []);
+});
+
+test(".layignore cannot hide runtime drift for an explicit defaults declaration", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-explicit-default-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  const defaults = new TextEncoder().encode('{"enabled":true}\n');
+  const identity = hashes(defaults);
+  const defaultPath = "configureddefaults/config/example.json";
+  await mkdir(path.dirname(path.join(root, defaultPath)), { recursive: true });
+  await writeFile(path.join(root, defaultPath), defaults);
+  await writeFile(path.join(root, ".layignore"), "/config/\n/configureddefaults/\n");
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "example.json"), '{"enabled":false}\n');
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: defaultPath,
+          hashes: { sha1: identity.sha1, sha256: identity.sha256 },
+          downloads: [`./${defaultPath}`],
+          fileSize: defaults.byteLength,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
+    [[defaultPath, "config/example.json", "updated"]],
+  );
+});
+
+test("status detects newer runtime drift after a matching default was staged", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-staged-default-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  const defaults = new TextEncoder().encode('{"enabled":true}\n');
+  const identity = hashes(defaults);
+  const defaultPath = "configureddefaults/config/example.json";
+  await mkdir(path.dirname(path.join(root, defaultPath)), { recursive: true });
+  await writeFile(path.join(root, defaultPath), defaults);
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "example.json"), '{"enabled":false}\n');
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: defaultPath,
+          hashes: { sha1: identity.sha1, sha256: identity.sha256 },
+          downloads: [`./${defaultPath}`],
+          fileSize: defaults.byteLength,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await run("git", ["add", "--", defaultPath], { cwd: root });
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.sourcePath, entry.state]),
+    [[defaultPath, "config/example.json", "updated"]],
   );
 });
