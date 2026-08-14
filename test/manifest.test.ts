@@ -44,6 +44,42 @@ test("repository-backed files require sha1, sha256, size, and a safe relative so
   );
 });
 
+test("repository-backed declarations are limited to configuration content", async () => {
+  await assert.rejects(
+    () =>
+      validateManifest({
+        ...rootManifest(),
+        files: [
+          {
+            path: "mods/example.jar",
+            hashes: { sha1: "0".repeat(40), sha256: "0".repeat(64) },
+            downloads: ["./mods/example.jar"],
+            fileSize: 1,
+          },
+        ],
+      }),
+    /Only configuration content may be repository-backed/u,
+  );
+});
+
+test("mirrored defaults stores cannot disguise packaged content as configuration", async () => {
+  await assert.rejects(
+    () =>
+      validateManifest({
+        ...rootManifest(),
+        files: [
+          {
+            path: "configureddefaults/resourcepacks/example.zip",
+            hashes: { sha1: "0".repeat(40), sha256: "0".repeat(64) },
+            downloads: ["./configureddefaults/resourcepacks/example.zip"],
+            fileSize: 1,
+          },
+        ],
+      }),
+    /Only configuration content may be repository-backed/u,
+  );
+});
+
 test("parent locks contain immutable integrity metadata", async () => {
   await assert.rejects(
     () => validateManifest({ ...rootManifest(), extends: { url: "https://github.com/lucent-mc/base" } }),

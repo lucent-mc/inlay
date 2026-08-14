@@ -49,6 +49,37 @@ test("init force-stages the manifest when the instance ignores all files", async
   }
 });
 
+test("init locally excludes downloaded content roots without a repository gitignore", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-init-local-content-excludes-"));
+  await run("git", ["init", "-q"], { cwd: root });
+
+  await initialize(root, {
+    name: "Local Content Excludes",
+    minecraft: "1.21.1",
+    interactive: false,
+  });
+
+  const contentPaths = [
+    "datapacks/example.zip",
+    "mods/example.jar",
+    "plugins/example.jar",
+    "resourcepacks/example.zip",
+    "shaderpacks/example.zip",
+    "texturepacks/example.zip",
+  ];
+  for (const candidate of contentPaths) {
+    await mkdir(path.join(root, path.dirname(candidate)), { recursive: true });
+    await writeFile(path.join(root, candidate), "downloaded content");
+  }
+
+  const { stdout } = await run("git", ["check-ignore", "--verbose", "--", ...contentPaths], {
+    cwd: root,
+  });
+  for (const candidate of contentPaths) {
+    assert.match(stdout, new RegExp(`info/exclude.*${candidate.replaceAll("/", "\\/")}`, "u"));
+  }
+});
+
 test("init imports and locally excludes managed downloads from an existing Modrinth instance", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-init-modrinth-"));
   await run("git", ["init", "-q"], { cwd: root });
