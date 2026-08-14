@@ -18,9 +18,21 @@ import { type StatusEntry, status } from "./status.js";
 
 export type ReconcileAction = "add" | "record" | "remove" | "exclude" | "restore" | "upstream" | "preserve";
 
+export interface ReconcileBatchResult {
+  action: ReconcileAction;
+  paths: string[];
+  staged: string[];
+}
+
+interface ReconcileOptions {
+  interactive: boolean;
+  action?: ReconcileAction;
+  dryRun?: boolean;
+}
+
 function choices(entry: StatusEntry): Array<{ value: ReconcileAction; label: string; hint?: string }> {
   if (entry.state === "untracked") {
-    const authority = contentAuthority(entry.path);
+    const authority = contentAuthority(entry.declarationPath ?? entry.path);
     return [
       ...(authority === "modrinth"
         ? [{ value: "add" as const, label: "Track from Modrinth", hint: "declare remotely; keep local" }]
@@ -68,6 +80,137 @@ async function selectAction(
   return selected;
 }
 
+const batchLabels: Record<ReconcileAction, string> = {
+  add: "Add every file to this Layer",
+  record: "Record every changed file",
+  remove: "Remove every file from this Layer",
+  exclude: "Exclude every inherited file",
+  restore: "Restore every declared file",
+  upstream: "Track every file in its owning Layer",
+  preserve: "Ignore every file in this Layer",
+};
+
+function sharedChoices(entries: StatusEntry[]): Array<{ value: ReconcileAction; label: string }> {
+  const first = entries[0];
+  if (!first) return [];
+  return choices(first)
+    .filter((option) => entries.length === 1 || option.value !== "upstream")
+    .filter((option) =>
+      entries.every((entry) => choices(entry).some((candidate) => candidate.value === option.value)),
+    )
+    .map((option) => ({ value: option.value, label: batchLabels[option.value] }));
+}
+
+async function selectBatchAction(
+  entries: StatusEntry[],
+  label: string,
+  options: ReconcileOptions,
+): Promise<ReconcileAction> {
+  const available = sharedChoices(entries);
+  if (options.action) {
+    if (available.some((option) => option.value === options.action)) return options.action;
+    throw new InlayError(
+      error(
+        "reconcile-action-incompatible",
+        `${options.action} cannot be applied to every unresolved file below ${label}.`,
+        { detail: entries.map((entry) => `${entry.path}: ${entry.state}`).join("\n") },
+      ),
+      2,
+    );
+  }
+  const onlyEntry = entries[0];
+  if (entries.length === 1 && onlyEntry) return selectAction(onlyEntry, options.interactive);
+  if (available.length === 0) {
+    throw new InlayError(
+      error(
+        "reconcile-directory-mixed",
+        `${label} contains unresolved files that do not share one reconciliation action.`,
+        { detail: entries.map((entry) => `${entry.path}: ${entry.state}`).join("\n") },
+      ),
+      2,
+    );
+  }
+  if (!options.interactive) {
+    throw new InlayError(
+      error("reconcile-action-required", `Choose an explicit action for ${label}.`, { path: label }),
+      2,
+    );
+  }
+  const selected = await p.select({
+    message: `Reconcile ${label} (${entries.length} files)`,
+    options: available,
+  });
+  if (p.isCancel(selected)) throw new InlayError(error("cancelled", "Reconciliation cancelled."));
+  return selected;
+}
+
+function normalizedTarget(value: string): string {
+  const normalized = value.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+  return normalized === "." ? "" : normalized;
+}
+
+function entriesBelow(report: Awaited<ReturnType<typeof status>>, targets: string[]): StatusEntry[] {
+  const unresolved = report.entries.filter((entry) => !["unchanged", "reconciled"].includes(entry.state));
+  const selected = new Map<string, StatusEntry>();
+  for (const value of targets) {
+    const target = normalizedTarget(value).toLocaleLowerCase("en-US");
+    const exact = unresolved.filter((entry) =>
+      [entry.path, entry.declarationPath]
+        .filter((candidate): candidate is string => candidate !== undefined)
+        .some((candidate) => candidate.toLocaleLowerCase("en-US") === target),
+    );
+    const matches =
+      exact.length > 0
+        ? exact
+        : unresolved.filter((entry) =>
+            [entry.path, entry.declarationPath]
+              .filter((candidate): candidate is string => candidate !== undefined)
+              .some((candidate) => {
+                const normalized = candidate.toLocaleLowerCase("en-US");
+                return target === "" || normalized.startsWith(`${target}/`);
+              }),
+          );
+    for (const entry of matches) selected.set(entry.path.toLocaleLowerCase("en-US"), entry);
+  }
+  return [...selected.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+/** Reconcile every unresolved entry selected by exact path or directory prefix with one action. */
+export async function reconcileTargets(
+  root: string,
+  targets: string[],
+  options: ReconcileOptions,
+): Promise<ReconcileBatchResult> {
+  const report = await status(root);
+  const entries = entriesBelow(report, targets);
+  const label =
+    targets.length === 1 ? normalizedTarget(targets[0] ?? "") || "." : `${targets.length} selections`;
+  if (entries.length === 0) {
+    throw new InlayError(
+      error("nothing-to-reconcile", `${label} has no unresolved status.`, { path: label }),
+    );
+  }
+  const action = await selectBatchAction(entries, label, options);
+  const staged = new Set<string>();
+  for (const entry of entries) {
+    const outcome = await reconcilePath(root, entry.path, {
+      interactive: false,
+      action,
+      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+    });
+    for (const candidate of outcome.staged) staged.add(candidate);
+  }
+  return { action, paths: entries.map((entry) => entry.path), staged: [...staged] };
+}
+
+export async function reconcileTarget(
+  root: string,
+  target: string,
+  options: ReconcileOptions,
+): Promise<ReconcileBatchResult> {
+  return reconcileTargets(root, [target], options);
+}
+
 async function readMaterializationRecord(root: string): Promise<MaterializationRecord | undefined> {
   try {
     return JSON.parse(
@@ -107,13 +250,13 @@ async function restoreManaged(root: string, target: string): Promise<void> {
 export async function reconcilePath(
   root: string,
   target: string,
-  options: { interactive: boolean; action?: ReconcileAction; dryRun?: boolean },
+  options: ReconcileOptions,
 ): Promise<{ action: ReconcileAction; staged: string[] }> {
   const report = await status(root);
   const entry = report.entries.find(
     (candidate) =>
       candidate.path.toLowerCase() === target.toLowerCase() ||
-      candidate.sourcePath?.toLowerCase() === target.toLowerCase(),
+      candidate.declarationPath?.toLowerCase() === target.toLowerCase(),
   );
   if (!entry || ["unchanged", "reconciled"].includes(entry.state)) {
     throw new InlayError(
@@ -136,19 +279,20 @@ export async function reconcilePath(
   if (action === "preserve") {
     const staged = [LAYIGNORE_FILENAME];
     if (options.dryRun !== true) {
-      await preserveWithLayIgnore(root, entry.sourcePath ?? entry.path);
+      await preserveWithLayIgnore(root, entry.path);
       await new GitAdapter(root).stage(staged, true);
     }
     return { action, staged };
   }
   if (options.dryRun === true) {
-    const authority = contentAuthority(entry.path);
+    const declarationPath = entry.declarationPath ?? entry.path;
+    const authority = contentAuthority(declarationPath);
     if ((action === "add" || action === "record") && authority === "unsupported") {
       throw new InlayError(
         error(
           "repository-content-forbidden",
-          `${entry.path} cannot be stored in Git. Only configuration content may be repository-backed.`,
-          { path: entry.path },
+          `${declarationPath} cannot be stored in Git. Only configuration content may be repository-backed.`,
+          { path: declarationPath },
         ),
         2,
       );
@@ -159,7 +303,7 @@ export async function reconcilePath(
         action === "restore"
           ? []
           : action === "add" || action === "record" || action === "remove"
-            ? [MANIFEST_FILENAME, ...(authority === "repository-config" ? [entry.path] : [])]
+            ? [MANIFEST_FILENAME, ...(authority === "repository-config" ? [declarationPath] : [])]
             : [MANIFEST_FILENAME],
     };
   }
@@ -167,25 +311,26 @@ export async function reconcilePath(
   const { manifest } = await readManifest(root);
   const git = new GitAdapter(root);
   const staged: string[] = [];
+  const declarationPath = entry.declarationPath ?? entry.path;
   if (action === "restore") {
-    if (entry.sourcePath) {
-      const bytes = await readFile(resolveInside(root, entry.path));
-      const runtime = resolveInside(root, entry.sourcePath);
+    if (entry.declarationPath) {
+      const bytes = await readFile(resolveInside(root, entry.declarationPath));
+      const runtime = resolveInside(root, entry.path);
       await mkdir(path.dirname(runtime), { recursive: true });
       await writeFile(runtime, bytes);
       return { action, staged };
     }
     const declaration = manifest.files.find(
       (file) =>
-        isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === entry.path.toLowerCase(),
+        isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === declarationPath.toLowerCase(),
     );
     if (declaration) {
       const repositoryRoot = await git.root();
       const repositoryPath = path
-        .relative(repositoryRoot, resolveInside(root, entry.path))
+        .relative(repositoryRoot, resolveInside(root, declarationPath))
         .replaceAll("\\", "/");
       const bytes = await git.readAtHead(repositoryPath);
-      const filename = resolveInside(root, entry.path);
+      const filename = resolveInside(root, declarationPath);
       await mkdir(path.dirname(filename), { recursive: true });
       await writeFile(filename, bytes);
       return { action, staged };
@@ -199,51 +344,52 @@ export async function reconcilePath(
     manifest.exclusions = [...(manifest.exclusions ?? []), exclusion];
   } else if (action === "remove") {
     manifest.files = manifest.files.filter((file) => {
-      if (file.path.toLowerCase() === entry.path.toLowerCase()) return false;
+      if (file.path.toLowerCase() === declarationPath.toLowerCase()) return false;
       return !(
-        isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === entry.path.toLowerCase()
+        isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === declarationPath.toLowerCase()
       );
     });
   } else {
-    const source = resolveInside(root, entry.sourcePath ?? entry.path);
+    const source = resolveInside(root, entry.path);
     const details = await lstat(source);
     if (!details.isFile() || details.isSymbolicLink()) {
       throw new InlayError(error("repository-source-type", `${entry.path} is not a regular file.`));
     }
     const bytes = await readFile(source);
-    const authority = contentAuthority(entry.path);
+    const authority = contentAuthority(declarationPath);
     if (authority === "unsupported") {
       throw new InlayError(
         error(
           "repository-content-forbidden",
-          `${entry.path} cannot be stored in Git. Only configuration content may be repository-backed.`,
-          { path: entry.path },
+          `${declarationPath} cannot be stored in Git. Only configuration content may be repository-backed.`,
+          { path: declarationPath },
         ),
         2,
       );
     }
     let next: FileDeclaration;
     if (authority === "modrinth") {
-      const installed = await detectModrinthContent(root, entry.path);
-      next = await remoteContentDeclaration(entry.path, bytes, manifest, installed ? { installed } : {});
+      const installed = await detectModrinthContent(root, declarationPath);
+      next = await remoteContentDeclaration(declarationPath, bytes, manifest, installed ? { installed } : {});
     } else {
-      const destination = resolveInside(root, entry.path);
-      if (entry.sourcePath) {
+      const destination = resolveInside(root, declarationPath);
+      if (entry.declarationPath) {
         await mkdir(path.dirname(destination), { recursive: true });
         await writeFile(destination, bytes);
       }
       const actual = hashes(bytes);
       next = {
-        path: entry.path,
+        path: declarationPath,
         hashes: { sha1: actual.sha1, sha256: actual.sha256 },
-        downloads: [`./${entry.path}`],
+        downloads: [`./${declarationPath}`],
         fileSize: bytes.byteLength,
       };
     }
     const index = manifest.files.findIndex(
       (file) =>
-        file.path.toLowerCase() === entry.path.toLowerCase() ||
-        (isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === entry.path.toLowerCase()),
+        file.path.toLowerCase() === declarationPath.toLowerCase() ||
+        (isRepositoryFile(file) &&
+          file.downloads[0].slice(2).toLowerCase() === declarationPath.toLowerCase()),
     );
     if (index >= 0) manifest.files[index] = next;
     else manifest.files.push(next);
@@ -252,12 +398,12 @@ export async function reconcilePath(
   staged.push(MANIFEST_FILENAME);
   if (
     (action === "add" || action === "record" || action === "remove") &&
-    contentAuthority(entry.path) === "repository-config"
+    contentAuthority(declarationPath) === "repository-config"
   )
-    staged.push(entry.path);
+    staged.push(declarationPath);
   await git.stage(staged, action === "add");
-  if ((action === "add" || action === "record") && contentAuthority(entry.path) === "modrinth") {
-    await recordMaterializedPath(root, entry.path);
+  if ((action === "add" || action === "record") && contentAuthority(declarationPath) === "modrinth") {
+    await recordMaterializedPath(root, declarationPath);
   }
   return { action, staged };
 }

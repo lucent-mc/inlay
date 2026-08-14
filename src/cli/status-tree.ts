@@ -34,6 +34,7 @@ export interface StatusTreeRenderOptions {
 export interface StatusIntent {
   kind: "reconcile" | "inspect" | "finish";
   paths: string[];
+  target?: string;
 }
 
 const order: Record<StatusState, number> = {
@@ -299,7 +300,11 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
   protected override _shouldSubmit(): boolean {
     const focused = visible(tree(this.entries), this.view.expanded)[this.view.selected]?.node;
     if (!focused) return false;
-    this._setValue({ kind: "reconcile", paths: descendants(focused).map((entry) => entry.path) });
+    this._setValue({
+      kind: "reconcile",
+      paths: descendants(focused).map((entry) => entry.path),
+      target: focused.path,
+    });
     return true;
   }
 }

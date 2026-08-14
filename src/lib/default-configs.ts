@@ -387,6 +387,18 @@ export function isDefaultConfigPath(candidate: string, providers: readonly Defau
   return classifyDefaultConfigPath(candidate, providers) !== undefined;
 }
 
+/** Provider-owned roots that must be discovered independently of Git ignore rules. */
+export function defaultConfigStoreRoots(providers: readonly DefaultConfigProvider[]): string[] {
+  return [
+    ...new Set(
+      providers.flatMap((provider) => {
+        const adapter = adapterById.get(provider.id);
+        return adapter ? [adapter.conventionRoot] : [];
+      }),
+    ),
+  ];
+}
+
 export async function isUnpackageableDefaultConfigPath(
   root: string,
   candidate: string,

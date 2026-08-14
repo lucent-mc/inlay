@@ -4,6 +4,8 @@ import { GitAdapter } from "../adapters/git.js";
 import { DOWNLOADED_CONTENT_DIRECTORIES, MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
 import { isImplicitContentCandidate } from "../lib/content-candidates.js";
 import {
+  classifyDefaultConfigPath,
+  defaultConfigStoreRoots,
   detectDefaultConfigProviders,
   isDefaultConfigPath,
   isRuntimeConfigPath,
@@ -20,8 +22,10 @@ import type { MaterializationRecord } from "./materialize.js";
 export type StatusState = "untracked" | "conflict" | "updated" | "deleted" | "reconciled" | "unchanged";
 
 export interface StatusEntry {
+  /** Instance path shown to and selected by the author. */
   path: string;
-  sourcePath?: string;
+  /** Repository-backed manifest path when it differs from the authoring path. */
+  declarationPath?: string;
   state: StatusState;
   owner: string;
   detail: string;
@@ -50,7 +54,11 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
     const source = declaration.downloads[0].slice(2);
     known.add(source.toLowerCase());
     const filename = resolveInside(root, source);
-    if (!(await exists(filename))) {
+    const classification = classifyDefaultConfigPath(source, defaultConfigProviders);
+    const runtimePath = classification?.kind === "mirror" ? classification.runtimePath : undefined;
+    const runtimeExists = runtimePath ? await exists(resolveInside(root, runtimePath)) : false;
+    if (runtimePath && runtimeExists) known.add(runtimePath.toLowerCase());
+    if (!(await exists(filename)) && !runtimeExists) {
       entries.push({
         path: source,
         state: "deleted",
@@ -60,17 +68,33 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
       });
       continue;
     }
-    const bytes = await readFile(filename);
+    const authoringPath = runtimePath && runtimeExists ? runtimePath : source;
+    const bytes = await readFile(resolveInside(root, authoringPath));
     const changed =
       bytes.byteLength !== declaration.fileSize || digest(bytes, "sha256") !== declaration.hashes.sha256;
+    let repositoryChanged = false;
+    if (authoringPath !== source) {
+      if (!(await exists(filename))) {
+        repositoryChanged = true;
+      } else {
+        const storedBytes = await readFile(filename);
+        repositoryChanged =
+          storedBytes.byteLength !== declaration.fileSize ||
+          digest(storedBytes, "sha256") !== declaration.hashes.sha256;
+      }
+    }
     const isStaged = staged.has(source.toLowerCase());
     entries.push({
-      path: source,
-      state: changed ? "updated" : isStaged ? "reconciled" : "unchanged",
+      path: authoringPath,
+      ...(authoringPath === source ? {} : { declarationPath: source }),
+      state: changed || repositoryChanged ? "updated" : isStaged ? "reconciled" : "unchanged",
       owner: `${manifest.name}@${manifest.versionId}`,
-      detail: changed
-        ? "Working bytes differ from the current files[] declaration."
-        : "Matches declared hashes and size.",
+      detail:
+        changed || repositoryChanged
+          ? authoringPath === source
+            ? "Working bytes differ from the current files[] declaration."
+            : `${authoringPath} differs from the declared default stored at ${source}.`
+          : "Matches declared hashes and size.",
       staged: isStaged,
     });
   }
@@ -116,7 +140,11 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
   }
 
   const candidates = new Map<string, string>();
-  const downloadedContent = await regularFilesUnder(root, ["config", ...DOWNLOADED_CONTENT_DIRECTORIES]);
+  const downloadedContent = await regularFilesUnder(root, [
+    "config",
+    ...defaultConfigStoreRoots(defaultConfigProviders),
+    ...DOWNLOADED_CONTENT_DIRECTORIES,
+  ]);
   for (const candidate of [...(await git.tracked()), ...(await git.untracked()), ...downloadedContent]) {
     candidates.set(candidate.toLowerCase(), candidate);
   }
@@ -153,16 +181,12 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
       if (isDefaultConfigPath(runtimePath, defaultConfigProviders)) continue;
       const projection = await projectRuntimeConfig(root, runtimePath, defaultConfigProviders);
       if (!projection) continue;
-      const existing = entries.find((entry) => entry.path.toLowerCase() === projection.path.toLowerCase());
+      const existing = entries.find(
+        (entry) =>
+          entry.path.toLowerCase() === projection.path.toLowerCase() ||
+          entry.declarationPath?.toLowerCase() === projection.path.toLowerCase(),
+      );
       if (existing) {
-        if (!["unchanged", "reconciled"].includes(existing.state)) continue;
-        const defaultsBytes = await readFile(resolveInside(root, projection.path));
-        const runtimeBytes = await readFile(resolveInside(root, runtimePath));
-        if (!defaultsBytes.equals(runtimeBytes)) {
-          existing.state = "updated";
-          existing.sourcePath = runtimePath;
-          existing.detail = `${runtimePath} differs from the ${projection.provider.name} default.`;
-        }
         continue;
       }
       if (layIgnore.ignores(runtimePath) || layIgnore.ignores(projection.path)) continue;
@@ -173,8 +197,8 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
         // A missing default is offered at its projected authorable path below.
       }
       entries.push({
-        path: projection.path,
-        sourcePath: runtimePath,
+        path: runtimePath,
+        declarationPath: projection.path,
         state: "untracked",
         owner: "Local instance",
         detail: `${runtimePath} has no ${projection.provider.name} default.`,

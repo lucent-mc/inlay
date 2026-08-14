@@ -20,7 +20,7 @@ import { materialize } from "./operations/materialize.js";
 import { migrateManifest } from "./operations/migrate.js";
 import { addContent, removeContent } from "./operations/packages.js";
 import { removeParent, setParent } from "./operations/parent.js";
-import { type ReconcileAction, reconcilePath } from "./operations/reconcile.js";
+import { type ReconcileAction, reconcileTarget, reconcileTargets } from "./operations/reconcile.js";
 import { checkPack } from "./operations/resolve.js";
 import { status } from "./operations/status.js";
 import { discoverUpdates, updateContent } from "./operations/updates.js";
@@ -95,11 +95,8 @@ async function interactiveStatus(root: string): Promise<void> {
       );
       continue;
     }
-    for (const target of intent.paths) {
-      const entry = report.entries.find((candidate) => candidate.path === target);
-      if (!entry || ["unchanged", "reconciled"].includes(entry.state)) continue;
-      await reconcilePath(root, target, { interactive: true });
-    }
+    if (intent.target) await reconcileTarget(root, intent.target, { interactive: true });
+    else await reconcileTargets(root, intent.paths, { interactive: true });
   }
   const { staged } = await import("./adapters/git.js").then(async ({ GitAdapter }) => {
     const git = new GitAdapter(root);
@@ -256,14 +253,14 @@ program
 
 program
   .command("reconcile")
-  .description("reconcile one exact unresolved file")
-  .argument("<path>")
+  .description("reconcile one unresolved file or every unresolved file below a directory")
+  .argument("<path>", "instance-relative file or directory")
   .option("--action <action>", "add, record, remove, exclude, restore, upstream, or preserve")
   .action(async (target, local, command) => {
     const options = globalOptions(command);
     let reconciled = false;
     await execute("reconcile", options, async () => {
-      const data = await reconcilePath(options.root, target.replaceAll("\\", "/"), {
+      const data = await reconcileTarget(options.root, target.replaceAll("\\", "/"), {
         interactive: options.interactive,
         ...(local.action === undefined ? {} : { action: local.action as ReconcileAction }),
         ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
