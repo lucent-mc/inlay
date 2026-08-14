@@ -7,13 +7,14 @@ import { GitAdapter } from "../adapters/git.js";
 import { modrinthIdentityFromUrl } from "../adapters/modrinth.js";
 import { MANIFEST_FILENAME } from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
-import { readManifest, writeManifest } from "../manifest/index.js";
+import { contentAuthority } from "../lib/content-authority.js";
+import { parseManifest, readManifest, writeManifest } from "../manifest/index.js";
 import type { FileDeclaration, LayerManifest } from "../types.js";
 
 type Bump = "patch" | "minor" | "major";
 type ChangeAction = "add" | "update" | "remove";
 
-interface ChangeEntry {
+export interface ChangeEntry {
   action: ChangeAction;
   kind: string;
   path: string;
@@ -34,7 +35,7 @@ function kind(value: string): string {
   if (value.startsWith("texturepacks/")) return "resource-pack";
   if (value.startsWith("shaderpacks/")) return "shader-pack";
   if (value.startsWith("datapacks/")) return "data-pack";
-  if (value.startsWith("config/")) return "config";
+  if (contentAuthority(value) === "repository-config") return "config";
   if (value === MANIFEST_FILENAME) return "parent";
   return "other";
 }
@@ -82,10 +83,10 @@ function manifestEntries(previous: LayerManifest, current: LayerManifest): Chang
   return entries;
 }
 
-async function stagedEntries(root: string, git: GitAdapter): Promise<ChangeEntry[]> {
+export async function stagedEntries(git: GitAdapter): Promise<ChangeEntry[]> {
   const staged = await git.staged();
   if (staged.includes(MANIFEST_FILENAME)) {
-    const current = (await readManifest(root)).manifest;
+    const current = (await parseManifest(await git.readAtIndex(MANIFEST_FILENAME))).manifest;
     let previous: LayerManifest;
     try {
       previous = JSON.parse(
@@ -119,7 +120,7 @@ export async function createChange(
   options: { bump?: Bump; message?: string; interactive: boolean; dryRun?: boolean },
 ) {
   const git = new GitAdapter(root);
-  const changes = await stagedEntries(root, git);
+  const changes = await stagedEntries(git);
   if (changes.length === 0)
     throw new InlayError(error("changes-empty", "No staged content changes were found."), 2);
   let bump = options.bump;

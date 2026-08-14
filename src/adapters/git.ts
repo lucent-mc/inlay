@@ -85,4 +85,19 @@ export class GitAdapter {
       );
     }
   }
+
+  async readAtIndex(repositoryRelativePath: string): Promise<Uint8Array> {
+    try {
+      const result = await execa("git", ["show", `:${repositoryRelativePath.replaceAll("\\", "/")}`], {
+        cwd: this.cwd,
+        encoding: "buffer",
+      });
+      return new Uint8Array(result.stdout);
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new InlayError(
+        error("git-index-read", `Cannot read staged ${repositoryRelativePath}.`, { detail }),
+      );
+    }
+  }
 }
