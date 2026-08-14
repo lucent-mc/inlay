@@ -120,6 +120,10 @@ _Avoid_: Materialization Record, Layer Manifest, release notes
 An approved regular file or downloadable artifact that belongs to a Layer through an exact per-file declaration. Downloadable mods, plugins, resource packs, shader packs, datapacks, and other content payloads use immutable remote declarations and are never tracked by Git. Only configuration content may use a repository-backed declaration, in which case its source must also be tracked by Git. Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
 _Avoid_: Git-tracked file, arbitrary instance content, runtime files
 
+**Artifact Compatibility Claim**:
+Provider-reported Minecraft-version and loader coverage for one artifact. It is advisory evidence rather than an execution boundary: authors may reconcile and package an immutable artifact tested successfully in the playable instance even when its provider omits that Runtime Target. Identity, hashes, content kind, destination, and Layer-to-Layer Runtime Target equality remain strict.
+_Avoid_: Runtime Target, verified incompatibility, artifact identity
+
 **Repository-backed Configuration**:
 Configuration Tracked Content whose exact source bytes live in the Layer repository and whose declaration uses a safe `./` source. It is the only instance content payload Git may track. Mirrored defaults stores do not change this classification: packaged mods, resource packs, shaders, datapacks, or other downloads remain remote even when a provider could copy them from a defaults tree.
 _Avoid_: Repository-backed content, bundled downloaded artifact, arbitrary override

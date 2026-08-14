@@ -65,6 +65,11 @@ fallback, then records their immutable HTTPS declaration in
 instance content: reconciling it stages both its manifest declaration and source bytes. `lay commit`
 refuses any manually staged instance payload that is not a declared configuration source.
 
+Modrinth's reported Minecraft-version and loader coverage is advisory during reconciliation. A mod
+that the playable authoring instance has proven usable can be recorded even when its Modrinth version
+does not list the Layer's exact target; artifact identity, hashes, content kind, and destination remain
+strictly verified.
+
 For automation, reconcile one file or apply one action to every unresolved file below a directory:
 
 ```sh
