@@ -82,15 +82,15 @@ Choose **Ignore in this Layer** while reconciling an untracked file to keep it l
 exact path to `.layignore`, and stage that policy change. Explicit `files[]` declarations are always
 checked.
 
-When a supported defaults provider is identified from a resolved Modrinth project, JAR metadata, or an
-authored convention, `lay status` treats ordinary generated `config/` files as runtime copies. It
-compares and reconciles them through Configured Defaults (`configureddefaults`), Config Manager
+When a supported defaults provider's store directory exists and its matching mod is identified under
+`mods/` from a resolved Modrinth project or JAR metadata, `lay status` treats ordinary generated
+`config/` files as runtime copies. It compares and reconciles them through Configured Defaults (`configureddefaults`), Config Manager
 (`config/modpack_defaults`), YOSBR (`config/yosbr`), or Default Options' mirrored `extra/` tree
 (`config/defaultoptions/extra`). Status keeps the live `config/` path as the authoring surface; tracking
 copies those bytes to the selected provider store and declares and stages that stored path. Existing
 authored files in a provider store remain directly discoverable until adopted, even when Git ignores
-the store. Generated empty skeletons do not activate projection, and ambiguous providers leave runtime
-files visible for explicit handling. Provider controls and specialized options, keybinding,
+the store. The directory or mod alone never activates projection, and ambiguous providers leave
+runtime files visible for explicit handling. Provider controls and specialized options, keybinding,
 resource-pack, and plugin behavior are not treated as generic config-file copies.
 
 Choosing “track upstream” never edits another repository. It stops and names the Layer that must receive the change; release that Layer, then update the child’s immutable parent reference.
