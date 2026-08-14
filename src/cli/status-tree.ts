@@ -17,6 +17,20 @@ interface View {
   expanded: Set<string>;
 }
 
+interface TerminalWritable extends Writable {
+  rows?: number;
+}
+
+export type StatusTreeWindowItem =
+  | { kind: "row"; index: number }
+  | { kind: "overflow"; direction: "above" | "below"; count: number };
+
+export interface StatusTreeRenderOptions {
+  selected?: number;
+  expanded?: ReadonlySet<string>;
+  terminalRows?: number;
+}
+
 export interface StatusIntent {
   kind: "reconcile" | "inspect" | "finish";
   paths: string[];
@@ -100,19 +114,119 @@ function descendants(node: Node): StatusEntry[] {
   return node.children.flatMap(descendants);
 }
 
-function render(entries: StatusEntry[], view: View): string {
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+export function statusTreeWindow(
+  totalRows: number,
+  selectedRow: number,
+  capacity: number,
+): StatusTreeWindowItem[] {
+  const total = Math.max(0, Math.floor(totalRows));
+  const available = Math.max(0, Math.floor(capacity));
+  if (total === 0 || available === 0) return [];
+  const selected = clamp(Math.floor(selectedRow), 0, total - 1);
+  if (total <= available) {
+    return Array.from({ length: total }, (_, index) => ({ kind: "row" as const, index }));
+  }
+  if (available === 1) return [{ kind: "row", index: selected }];
+  if (available === 2) {
+    const hiddenAbove = selected;
+    const hiddenBelow = total - selected - 1;
+    return hiddenAbove > hiddenBelow
+      ? [
+          { kind: "overflow", direction: "above", count: hiddenAbove },
+          { kind: "row", index: selected },
+        ]
+      : [
+          { kind: "row", index: selected },
+          { kind: "overflow", direction: "below", count: hiddenBelow },
+        ];
+  }
+
+  const middleRows = available - 2;
+  const centeredStart = selected - Math.floor(middleRows / 2);
+  const centeredEnd = centeredStart + middleRows;
+  const edgeRows = available - 1;
+  if (centeredStart <= 0) {
+    return [
+      ...Array.from({ length: edgeRows }, (_, index) => ({ kind: "row" as const, index })),
+      { kind: "overflow", direction: "below", count: total - edgeRows },
+    ];
+  }
+  if (centeredEnd >= total) {
+    const start = total - edgeRows;
+    return [
+      { kind: "overflow", direction: "above", count: start },
+      ...Array.from({ length: edgeRows }, (_, offset) => ({
+        kind: "row" as const,
+        index: start + offset,
+      })),
+    ];
+  }
+
+  const start = centeredStart;
+  const end = start + middleRows;
+  return [
+    { kind: "overflow", direction: "above", count: start },
+    ...Array.from({ length: middleRows }, (_, offset) => ({
+      kind: "row" as const,
+      index: start + offset,
+    })),
+    { kind: "overflow", direction: "below", count: total - end },
+  ];
+}
+
+function measuredTerminalRows(output: Writable): number {
+  const rows = (output as TerminalWritable).rows;
+  return typeof rows === "number" && Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 24;
+}
+
+function render(entries: StatusEntry[], view: View, requestedTerminalRows: number): string {
   const root = tree(entries);
   const rows = visible(root, view.expanded);
+  const terminalRows = Math.max(1, Math.floor(requestedTerminalRows));
+  const selected = rows.length === 0 ? 0 : clamp(view.selected, 0, rows.length - 1);
+  const focused = rows[selected]?.node;
   const counts = Object.fromEntries(
     Object.keys(order).map((state) => [state, entries.filter((entry) => entry.state === state).length]),
   );
-  const lines = [
-    `${pc.cyan("◆")}  ${pc.bold("lay status")}`,
-    `${pc.dim("│")}  ${paint("untracked", `? ${counts["untracked"]}`)}  ${paint("conflict", `! ${counts["conflict"]}`)}  ${paint("updated", `~ ${counts["updated"]}`)}  ${paint("deleted", `− ${counts["deleted"]}`)}  ${paint("reconciled", `✓ ${counts["reconciled"]}`)}  ${paint("unchanged", `· ${counts["unchanged"]}`)}`,
-    pc.dim("│"),
-  ];
-  for (const [index, row] of rows.entries()) {
-    const active = index === view.selected;
+  const title = `${pc.cyan("◆")}  ${pc.bold("lay status")}`;
+  const totals = `${pc.dim("│")}  ${paint("untracked", `? ${counts["untracked"]}`)}  ${paint("conflict", `! ${counts["conflict"]}`)}  ${paint("updated", `~ ${counts["updated"]}`)}  ${paint("deleted", `− ${counts["deleted"]}`)}  ${paint("reconciled", `✓ ${counts["reconciled"]}`)}  ${paint("unchanged", `· ${counts["unchanged"]}`)}`;
+  const help = `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  enter reconcile  space inspect  q finish")}`;
+  const header = terminalRows <= 1 ? [] : terminalRows < 4 ? [title] : [title, totals];
+  if (terminalRows >= 6) header.push(pc.dim("│"));
+  const footer = terminalRows < 3 ? [] : [help];
+  if (terminalRows >= 6) footer.unshift(pc.dim("│"));
+
+  const detail: string[] = [];
+  if (focused && terminalRows >= 12) {
+    const affected = descendants(focused);
+    const unresolved = affected.filter((entry) =>
+      ["untracked", "conflict", "updated", "deleted"].includes(entry.state),
+    ).length;
+    detail.push(
+      pc.dim("│"),
+      `${pc.dim("│")}  ${pc.bold("DETAIL")}`,
+      `${pc.dim("│")}  ${pc.cyan(focused.path)}${focused.kind === "directory" ? pc.dim(` · ${affected.length} files`) : ""}`,
+      focused.entry
+        ? `${pc.dim("│")}  ${focused.entry.detail} ${pc.dim(`· ${focused.entry.owner}`)}`
+        : `${pc.dim("│")}  ${pc.dim(`${unresolved} unresolved · ${affected.length} files`)}`,
+    );
+  }
+
+  const treeCapacity = Math.max(0, terminalRows - header.length - detail.length - footer.length);
+  const lines = [...header];
+  for (const item of statusTreeWindow(rows.length, selected, treeCapacity)) {
+    if (item.kind === "overflow") {
+      const direction = item.direction === "above" ? "↑" : "↓";
+      lines.push(`${pc.dim("│")}    ${pc.dim(`${direction} ${item.count} hidden`)}`);
+      continue;
+    }
+    const row = rows[item.index];
+    if (!row) continue;
+    const active = item.index === selected;
     const branch = row.node.kind === "directory" ? (view.expanded.has(row.node.path) ? "▾" : "▸") : " ";
     const raw = `${"  ".repeat(row.depth)}${branch} ${row.node.name}`;
     lines.push(
@@ -121,22 +235,19 @@ function render(entries: StatusEntry[], view: View): string {
       }`,
     );
   }
-  const focused = rows[view.selected]?.node;
-  if (focused) {
-    const affected = descendants(focused);
-    lines.push(
-      pc.dim("│"),
-      `${pc.dim("│")}  ${pc.bold("DETAIL")}`,
-      `${pc.dim("│")}  ${pc.cyan(focused.path)}${focused.kind === "directory" ? pc.dim(` · ${affected.length} files`) : ""}`,
-    );
-    if (focused.entry)
-      lines.push(`${pc.dim("│")}  ${focused.entry.detail} ${pc.dim(`· ${focused.entry.owner}`)}`);
-  }
-  lines.push(
-    pc.dim("│"),
-    `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  enter reconcile  space inspect  q finish")}`,
-  );
+  lines.push(...detail, ...footer);
   return lines.join("\n");
+}
+
+export function renderStatusTree(entries: StatusEntry[], options: StatusTreeRenderOptions = {}): string {
+  return render(
+    entries,
+    {
+      selected: options.selected ?? 0,
+      expanded: new Set(options.expanded ?? []),
+    },
+    options.terminalRows ?? 24,
+  );
 }
 
 export class StatusTreePrompt extends Prompt<StatusIntent> {
@@ -151,7 +262,7 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
       selected: 0,
       expanded: new Set(),
     };
-    super({ ...io, render: () => render(entries, view) }, false);
+    super({ ...io, render: () => render(entries, view, measuredTerminalRows(io.output)) }, false);
     this.view = view;
     this.entries = entries;
     this.on("cursor", (action) => {
