@@ -1,6 +1,6 @@
 {
   "name": "@lucent-mc/inlay",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Author, resolve, validate, and build layered Minecraft modpacks.",
   "license": "MIT",
   "type": "module",
