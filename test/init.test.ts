@@ -33,6 +33,7 @@ test("init force-stages the manifest when the instance ignores all files", async
   const excludes = await readFile(path.resolve(root, excludePath.trim()), "utf8");
   for (const runtimePath of [
     "/datapacks/",
+    "/data/fabric_default_resource_packs.json",
     "/logs/",
     "/crash-reports/",
     "/mods/",
