@@ -15,17 +15,26 @@ pnpm add --global @lucent-mc/inlay
 lay --help
 ```
 
-Run it from the root of a Modrinth, Prism, ATLauncher, or other ordinary Minecraft instance. Inlay is launcher-agnostic: the playable instance is the authoring working copy.
+Run it from the root of an ordinary Minecraft instance. Inlay is launcher-agnostic: the playable
+instance is the authoring working copy, and its output is a standard `.mrpack`.
 
 ## Start a Layer
 
 Create a root Layer inside an existing instance:
 
 ```sh
-lay init --name "Lucent Optimisations" --layer-version 1.0.0 \
-  --minecraft 1.21.1 --loader fabric-loader --loader-version 0.16.14
+lay init --layer-version 1.0.0
 lay status
 ```
+
+`lay init` detects the instance name, Minecraft version, and loader target from launcher-owned
+metadata for ATLauncher, GDLauncher Carbon, Modrinth App, Prism Launcher, and PolyMC. These are
+launchers that can manage authoring instances and consume Modrinth packs; Inlay does not promise
+launcher metadata integration outside that `.mrpack` ecosystem. Detection accounts for launchers
+that keep metadata beside the playable `.minecraft` or `instance` directory. A root
+`modrinth.index.json` is also imported when present. Explicit `--name`, `--minecraft`, `--loader`,
+and `--loader-version` values override detected metadata; conflicting or multiple implicit targets
+fail instead of being guessed.
 
 Create a child from an immutable GitHub Layer or an existing Modrinth pack:
 
