@@ -82,17 +82,11 @@ function installedEnvironment(content: DetectedModrinthContent): FileEnvironment
   return env.client === "required" && env.server === "required" ? undefined : env;
 }
 
-function runtimeLoader(manifest: LayerManifest): string | undefined {
-  return Object.keys(manifest.dependencies)
-    .find((dependency) => dependency !== "minecraft")
-    ?.replace(/-loader$/u, "");
-}
-
 /** Resolve installed artifact bytes to one immutable Modrinth declaration. */
 export async function remoteContentDeclaration(
   candidate: string,
   bytes: Uint8Array,
-  manifest: LayerManifest,
+  _manifest: LayerManifest,
   options: { modrinth?: ModrinthAdapter; installed?: DetectedModrinthContent } = {},
 ): Promise<RemoteFileDeclaration> {
   const modrinth = options.modrinth ?? new ModrinthAdapter();
@@ -145,22 +139,8 @@ export async function remoteContentDeclaration(
       ),
     );
   }
-  const minecraft = manifest.dependencies["minecraft"];
-  const loader = runtimeLoader(manifest);
-  if (!minecraft || !version.game_versions.includes(minecraft)) {
-    throw new InlayError(
-      error("artifact-incompatible", `${candidate} does not support Minecraft ${minecraft ?? "unknown"}.`, {
-        path: candidate,
-      }),
-    );
-  }
-  if (projectType === "mod" && (!loader || !version.loaders.includes(loader))) {
-    throw new InlayError(
-      error("artifact-incompatible", `${candidate} does not support loader ${loader ?? "vanilla"}.`, {
-        path: candidate,
-      }),
-    );
-  }
+  // Modrinth compatibility fields describe tested/reporting coverage, not an execution boundary.
+  // The playable authoring instance may prove additional Minecraft and loader combinations work.
   const env = installed ? installedEnvironment(installed) : project ? environment(project) : undefined;
   return {
     path: repositoryRelativePath(candidate),
