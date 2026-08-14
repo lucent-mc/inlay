@@ -49,7 +49,7 @@ A Materialization Drift affecting content owned by an ancestor Layer Version. It
 _Avoid_: Override, local ownership
 
 **Materialized Instance**:
-A launcher-agnostic Minecraft directory that is both a playable installation and the current Layer's authoring working copy. Maintainers edit and test content here, then reconcile intentional changes into the Layer Manifest and repository-owned source. Git tracks that portable current-Layer state, while generated exclusions keep inherited and downloaded managed files out of its index.
+A launcher-agnostic Minecraft directory that is both a playable installation and the current Layer's authoring working copy. Maintainers edit and test content here, then reconcile intentional changes into the Layer Manifest and, only for configuration content, repository-owned source. Git tracks Layer metadata and configuration sources; generated exclusions keep inherited and downloaded content payloads out of its index.
 _Avoid_: Layer source, release archive
 
 **Instance Hydration**:
@@ -57,7 +57,7 @@ The guarded reverse projection used after a successful Git pull or branch switch
 _Avoid_: Primary authoring flow, Git checkout, arbitrary instance synchronization
 
 **Reconciled Change**:
-An intentional instance change whose complete portable current-Layer representation is internally consistent and staged in Git. Restoring inherited content and preserving an unmanaged local file do not create a Reconciled Change because neither produces portable Layer state.
+An intentional instance change whose complete portable current-Layer representation is internally consistent and staged in Git. Remote content stages its immutable Layer Manifest declaration without staging materialized bytes; configuration content stages both its declaration and repository source. Restoring inherited content and preserving an unmanaged local file do not create a Reconciled Change because neither produces portable Layer state.
 _Avoid_: Any resolved drift, unstaged edit, partial manifest hunk
 
 **Materialization Record**:
@@ -117,8 +117,12 @@ A generated account of the exact toolkit version, source revision, resolved Laye
 _Avoid_: Materialization Record, Layer Manifest, release notes
 
 **Tracked Content**:
-An approved regular file or downloadable artifact that belongs to a Layer through an exact per-file declaration. Repository-owned content must also be tracked by Git, but Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
+An approved regular file or downloadable artifact that belongs to a Layer through an exact per-file declaration. Downloadable mods, plugins, resource packs, shader packs, datapacks, and other content payloads use immutable remote declarations and are never tracked by Git. Only configuration content may use a repository-backed declaration, in which case its source must also be tracked by Git. Git tracking alone never assigns Layer ownership. Filesystem links are never Tracked Content.
 _Avoid_: Git-tracked file, arbitrary instance content, runtime files
+
+**Repository-backed Configuration**:
+Configuration Tracked Content whose exact source bytes live in the Layer repository and whose declaration uses a safe `./` source. It is the only instance content payload Git may track. Mirrored defaults stores do not change this classification: packaged mods, resource packs, shaders, datapacks, or other downloads remain remote even when a provider could copy them from a defaults tree.
+_Avoid_: Repository-backed content, bundled downloaded artifact, arbitrary override
 
 **Directory Selection**:
 An authoring convenience in the CLI that expands a selected directory into exact per-file Tracked Content declarations before writing the Layer Manifest. It is not a manifest declaration or wildcard; untracked files and filesystem links are never selected.
@@ -185,11 +189,11 @@ The non-waivable inability to produce the exact validated Layer Lineage named by
 _Avoid_: Warning, Parent Update choice, best-effort import
 
 **Delivery Mode**:
-The Distribution Target's single choice for how all repository-owned Tracked Content reaches an installed Pack: bundled inside the Pack archive or downloaded from immutable, hash-verified locations.
+The Distribution Target's single choice for how all Repository-backed Configuration reaches an installed Pack: bundled inside the Pack archive or downloaded from immutable, hash-verified locations.
 _Avoid_: Ownership, Distribution Target
 
 **Preview Build**:
-A local, non-publishable Pack artifact that may snapshot uncommitted current-Layer source when using bundled Delivery Mode. It is visibly distinguished from a Release Build and never establishes a release identity.
+A local, non-publishable Pack artifact that may snapshot uncommitted current-Layer configuration source when using bundled Delivery Mode. It is visibly distinguished from a Release Build and never establishes a release identity.
 _Avoid_: Release Build, dirty release, publication candidate
 
 **Release Build**:

@@ -112,6 +112,7 @@
       ]
     },
     "repositoryFile": {
+      "description": "Repository-backed configuration content. Downloaded mods, resource packs, shaders, datapacks, and other content payloads require remote HTTPS declarations.",
       "allOf": [
         { "$ref": "#/$defs/fileBase" },
         {

@@ -58,6 +58,13 @@ lay status
 
 The Clack tree orders eligible untracked content, unresolved inherited conflicts, changed current-Layer files, deleted declarations, reconciled files, and unchanged files. Use arrows to navigate, Enter to reconcile, Space to inspect provenance, and `q` to finish. Reconciliation stages its portable Git representation and offers to commit when you leave.
 
+Downloaded content never enters Git. Reconciliation identifies installed mods, plugins, resource packs,
+shaders, and datapacks from verified launcher metadata when available, with Modrinth hash lookup as the
+fallback, then records their immutable HTTPS declaration in
+`inlay.index.json`, and stages only that manifest. Configuration is the sole repository-backed
+instance content: reconciling it stages both its manifest declaration and source bytes. `lay commit`
+refuses any manually staged instance payload that is not a declared configuration source.
+
 For automation or one file at a time:
 
 ```sh
@@ -67,7 +74,8 @@ lay commit -m "Tune defaults after playtesting"
 ```
 
 `lay init` writes a committed `.layignore` for repository-owned Layer-discovery rules and manages
-local Git visibility separately in `.git/info/exclude`. Git-ignored Minecraft downloads remain visible
+local Git visibility separately in `.git/info/exclude`. Known downloaded-content roots are always added
+to that generated local block when the repository does not already ignore them. Git-ignored Minecraft downloads remain visible
 to `lay status`; `.layignore` is the policy that suppresses an otherwise eligible implicit candidate.
 Choose **Ignore in this Layer** while reconciling an untracked file to keep it locally, append its
 exact path to `.layignore`, and stage that policy change. Explicit `files[]` declarations are always
@@ -123,7 +131,10 @@ Build output includes:
 - SHA-256 and SHA-512 checksum files;
 - a build record containing lineage, source commit, delivery mode, target limits, and artifact identity.
 
-Remote Modrinth content stays remote. Repository-backed content is either all bundled (the default) or all represented by commit-addressed GitHub downloads when top-level `delivery` is `"github"`. Publication checks enforce the configured target’s fixed upload limit.
+Remote Modrinth content stays remote and its materialized files never enter Git. Repository-backed
+configuration is either bundled (the default) or represented by commit-addressed GitHub downloads
+when top-level `delivery` is `"github"`. Publication checks enforce the configured target’s fixed
+upload limit.
 
 ## Version packs
 
@@ -165,7 +176,9 @@ Fragments live under `.inlay/changes/`, describe pack-domain additions, updates,
 
 An entry in a child’s `files[]` implicitly overrides the same path/environment slot from its parent. Replacing a mod whose filename/path changes uses an exact exclusion plus the new `files[]` entry. Directory exclusions are recursive only when `recursive: true`; children may add content at excluded paths afterward.
 
-Repository-backed declarations use `downloads: ["./relative/source"]` with SHA-1, SHA-256, and `fileSize`. Remote declarations retain the Modrinth contract: HTTPS downloads with SHA-1, SHA-512, size, and optional client/server environment policies.
+Repository-backed configuration declarations use `downloads: ["./relative/source"]` with SHA-1,
+SHA-256, and `fileSize`. All other content uses immutable remote declarations retaining the Modrinth
+contract: HTTPS downloads with SHA-1, SHA-512, size, and optional client/server environment policies.
 
 The schema is versioned independently from `lay`. One toolkit major reads all schema versions it supports; migrations cross at most one schema major per invocation.
 
