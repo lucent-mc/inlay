@@ -1,10 +1,15 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import { GitAdapter } from "../adapters/git.js";
-import { MANIFEST_FILENAME, MANIFEST_SCHEMA_URL } from "../constants.js";
+import {
+  DEFAULT_LAYIGNORE,
+  LAYIGNORE_FILENAME,
+  MANIFEST_FILENAME,
+  MANIFEST_SCHEMA_URL,
+} from "../constants.js";
 import { error, InlayError } from "../diagnostics.js";
-import { writeManifest } from "../manifest/index.js";
+import { isRepositoryFile, writeManifest } from "../manifest/index.js";
 import type { LayerManifest } from "../types.js";
 import { updateGeneratedExcludes } from "./git-excludes.js";
 
@@ -69,17 +74,25 @@ export async function initialize(root: string, options: InitOptions): Promise<La
     game: "minecraft",
     versionId: options.version ?? imported?.versionId ?? "0.1.0",
     name: await requiredValue("Layer name", options.name ?? imported?.name, options.interactive),
-    files: [],
+    files: imported?.files ?? [],
     dependencies: {
       minecraft,
       ...(loader && loaderVersion ? { [loader]: loaderVersion } : {}),
     },
   };
   if (options.dryRun !== true) {
+    try {
+      await access(path.join(root, LAYIGNORE_FILENAME));
+    } catch {
+      await writeFile(path.join(root, LAYIGNORE_FILENAME), DEFAULT_LAYIGNORE, "utf8");
+    }
     await writeManifest(root, manifest);
-    await updateGeneratedExcludes(root, []);
+    await updateGeneratedExcludes(
+      root,
+      manifest.files.filter((file) => !isRepositoryFile(file)).map((file) => file.path),
+    );
     const git = new GitAdapter(root);
-    if (await git.isRepository()) await git.stage([MANIFEST_FILENAME], true);
+    if (await git.isRepository()) await git.stage([MANIFEST_FILENAME, LAYIGNORE_FILENAME], true);
   }
   return manifest;
 }

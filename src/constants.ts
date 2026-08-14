@@ -1,5 +1,6 @@
 export const TOOLKIT_VERSION = "0.1.3";
 export const MANIFEST_FILENAME = "inlay.index.json";
+export const LAYIGNORE_FILENAME = ".layignore";
 export const MANIFEST_SCHEMA_VERSION = "1.0.0";
 export const MANIFEST_SCHEMA_URL =
   "https://raw.githubusercontent.com/lucent-mc/inlay/schema-v1.0.0/schema/inlay-1.0.0.schema.json";
@@ -16,22 +17,70 @@ export const DEFAULT_LOCAL_EXCLUDES = [
   "/cache/",
   "/crash-reports/",
   "/downloads/",
+  "/datapacks/",
   "/libraries/",
   "/logs/",
+  "/mods/",
   "/natives/",
   "/saves/",
   "/screenshots/",
   "/server-resource-packs/",
+  "/resourcepacks/",
+  "/shaderpacks/",
+  "/texturepacks/",
   "/versions/",
   "/webcache/",
   "/instance.json",
   "/launcher_accounts.json",
   "/launcher_profiles.json",
+  "/modrinth.index.json",
+  "/profile.json",
   "/realms_persistence.json",
   "/servers.dat",
   "/servers.dat_old",
   "/usercache.json",
   "/usernamecache.json",
 ] as const;
+export const DEFAULT_LAYIGNORE = `# Repository paths that are never implicit Layer content.
+# Add project-specific patterns below. Syntax matches .gitignore.
+/.changeset/
+/.cache/
+/.devcontainer/
+/.fabric/
+/.forgejo/
+/.gitea/
+/.github/
+/.gitlab/
+/.hg/
+/.husky/
+/.idea/
+/.inlay/
+/.quilt/
+/.svn/
+/.vscode/
+/action/
+/assets/
+/backups/
+/build/
+/cache/
+/ci/
+/coverage/
+/crash-reports/
+/downloads/
+/dist/
+/docs/
+/libraries/
+/logs/
+/natives/
+/node_modules/
+/saves/
+/schema/
+/screenshots/
+/server-resource-packs/
+/test/
+/tests/
+/versions/
+/webcache/
+`;
 export const MODRINTH_UPLOAD_LIMIT = 524_288_000;
 export const GITHUB_RELEASE_UPLOAD_LIMIT = 2_147_483_647;

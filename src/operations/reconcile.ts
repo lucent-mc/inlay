@@ -96,7 +96,11 @@ export async function reconcilePath(
   options: { interactive: boolean; action?: ReconcileAction; dryRun?: boolean },
 ): Promise<{ action: ReconcileAction; staged: string[] }> {
   const report = await status(root);
-  const entry = report.entries.find((candidate) => candidate.path.toLowerCase() === target.toLowerCase());
+  const entry = report.entries.find(
+    (candidate) =>
+      candidate.path.toLowerCase() === target.toLowerCase() ||
+      candidate.sourcePath?.toLowerCase() === target.toLowerCase(),
+  );
   if (!entry || ["unchanged", "reconciled"].includes(entry.state)) {
     throw new InlayError(
       error("nothing-to-reconcile", `${target} has no unresolved status.`, { path: target }),
@@ -123,6 +127,13 @@ export async function reconcilePath(
   const git = new GitAdapter(root);
   const staged: string[] = [];
   if (action === "restore") {
+    if (entry.sourcePath) {
+      const bytes = await readFile(resolveInside(root, entry.path));
+      const runtime = resolveInside(root, entry.sourcePath);
+      await mkdir(path.dirname(runtime), { recursive: true });
+      await writeFile(runtime, bytes);
+      return { action, staged };
+    }
     const declaration = manifest.files.find(
       (file) =>
         isRepositoryFile(file) && file.downloads[0].slice(2).toLowerCase() === entry.path.toLowerCase(),
@@ -153,12 +164,17 @@ export async function reconcilePath(
       );
     });
   } else {
-    const source = resolveInside(root, entry.path);
+    const source = resolveInside(root, entry.sourcePath ?? entry.path);
     const details = await lstat(source);
     if (!details.isFile() || details.isSymbolicLink()) {
       throw new InlayError(error("repository-source-type", `${entry.path} is not a regular file.`));
     }
     const bytes = await readFile(source);
+    const destination = resolveInside(root, entry.path);
+    if (entry.sourcePath) {
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
+    }
     const actual = hashes(bytes);
     const next: FileDeclaration = {
       path: entry.path,

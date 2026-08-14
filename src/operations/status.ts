@@ -3,7 +3,16 @@ import path from "node:path";
 import { GitAdapter } from "../adapters/git.js";
 import { MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
 import { isImplicitContentCandidate } from "../lib/content-candidates.js";
+import {
+  detectDefaultConfigProviders,
+  isDefaultConfigPath,
+  isRuntimeConfigPath,
+  isUnpackageableDefaultConfigPath,
+  projectRuntimeConfig,
+  regularFilesUnder,
+} from "../lib/default-configs.js";
 import { digest } from "../lib/hash.js";
+import { readLayIgnore } from "../lib/lay-ignore.js";
 import { resolveInside } from "../lib/path.js";
 import { isRepositoryFile, readManifest } from "../manifest/index.js";
 import type { MaterializationRecord } from "./materialize.js";
@@ -12,6 +21,7 @@ export type StatusState = "untracked" | "conflict" | "updated" | "deleted" | "re
 
 export interface StatusEntry {
   path: string;
+  sourcePath?: string;
   state: StatusState;
   owner: string;
   detail: string;
@@ -32,6 +42,8 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
   const staged = new Set((await git.staged()).map((item) => item.toLowerCase()));
   const entries: StatusEntry[] = [];
   const known = new Set<string>([MANIFEST_FILENAME.toLowerCase()]);
+  const defaultConfigProviders = await detectDefaultConfigProviders(root, manifest.files);
+  const layIgnore = await readLayIgnore(root);
 
   for (const declaration of manifest.files) {
     if (!isRepositoryFile(declaration)) continue;
@@ -101,11 +113,29 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
   }
 
   const candidates = new Map<string, string>();
-  for (const candidate of [...(await git.tracked()), ...(await git.untracked())]) {
+  const downloadedContent = await regularFilesUnder(root, [
+    "config",
+    "datapacks",
+    "mods",
+    "resourcepacks",
+    "shaderpacks",
+    "texturepacks",
+  ]);
+  for (const candidate of [...(await git.tracked()), ...(await git.untracked()), ...downloadedContent]) {
     candidates.set(candidate.toLowerCase(), candidate);
   }
   for (const [candidateKey, candidate] of candidates) {
-    if (known.has(candidateKey) || !isImplicitContentCandidate(candidate, manifest.docs ?? "docs")) continue;
+    const projection = isRuntimeConfigPath(candidate)
+      ? await projectRuntimeConfig(root, candidate, defaultConfigProviders)
+      : undefined;
+    if (
+      known.has(candidateKey) ||
+      projection !== undefined ||
+      layIgnore.ignores(candidate) ||
+      (await isUnpackageableDefaultConfigPath(root, candidate, defaultConfigProviders)) ||
+      !isImplicitContentCandidate(candidate, manifest.docs ?? "docs")
+    )
+      continue;
     try {
       const details = await lstat(resolveInside(root, candidate));
       if (!details.isFile() || details.isSymbolicLink()) continue;
@@ -119,6 +149,42 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
       detail: "Eligible regular file is not declared by this Layer.",
       staged: false,
     });
+  }
+
+  if (defaultConfigProviders.length > 0) {
+    const runtimeConfigs = await regularFilesUnder(root, ["config"]);
+    for (const runtimePath of runtimeConfigs) {
+      if (isDefaultConfigPath(runtimePath, defaultConfigProviders)) continue;
+      const projection = await projectRuntimeConfig(root, runtimePath, defaultConfigProviders);
+      if (!projection) continue;
+      const existing = entries.find((entry) => entry.path.toLowerCase() === projection.path.toLowerCase());
+      if (existing) {
+        if (!["unchanged", "reconciled"].includes(existing.state)) continue;
+        const defaultsBytes = await readFile(resolveInside(root, projection.path));
+        const runtimeBytes = await readFile(resolveInside(root, runtimePath));
+        if (!defaultsBytes.equals(runtimeBytes)) {
+          existing.state = "updated";
+          existing.sourcePath = runtimePath;
+          existing.detail = `${runtimePath} differs from the ${projection.provider.name} default.`;
+        }
+        continue;
+      }
+      if (layIgnore.ignores(runtimePath) || layIgnore.ignores(projection.path)) continue;
+      try {
+        const projected = await lstat(resolveInside(root, projection.path));
+        if (projected.isFile() && !projected.isSymbolicLink()) continue;
+      } catch {
+        // A missing default is offered at its projected authorable path below.
+      }
+      entries.push({
+        path: projection.path,
+        sourcePath: runtimePath,
+        state: "untracked",
+        owner: "Local instance",
+        detail: `${runtimePath} has no ${projection.provider.name} default.`,
+        staged: false,
+      });
+    }
   }
 
   const order: Record<StatusState, number> = {
