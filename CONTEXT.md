@@ -124,8 +124,12 @@ _Avoid_: Git-tracked file, arbitrary instance content, runtime files
 Configuration Tracked Content whose exact source bytes live in the Layer repository and whose declaration uses a safe `./` source. It is the only instance content payload Git may track. Mirrored defaults stores do not change this classification: packaged mods, resource packs, shaders, datapacks, or other downloads remain remote even when a provider could copy them from a defaults tree.
 _Avoid_: Repository-backed content, bundled downloaded artifact, arbitrary override
 
+**Default Configuration Projection**:
+The provider-specific mapping between an ordinary live `config/` Authoring Path and a repository-backed defaults-store Content Path. Status and reconciliation remain anchored on the live path; accepting a change copies its bytes into the safely selected provider store and declares and stages that stored path. Existing undeclared authored store files are discovered directly so older defaults can be adopted without first overwriting them from runtime. Generated skeletons, specialized provider files, and ambiguous providers never activate a generic projection.
+_Avoid_: Tracking runtime `config/`, launcher synchronization, generic directory mirroring
+
 **Directory Selection**:
-An authoring convenience in the CLI that expands a selected directory into exact per-file Tracked Content declarations before writing the Layer Manifest. It is not a manifest declaration or wildcard; untracked files and filesystem links are never selected.
+An authoring convenience in the CLI that expands a selected directory into exact per-file reconciliation operations using one compatible chosen action before writing the Layer Manifest. It is not a manifest declaration or wildcard; only unresolved regular-file entries currently visible to Status are selected, and filesystem links are never selected.
 _Avoid_: Directory Inclusion, Git directory, runtime wildcard
 
 **Content Path**:

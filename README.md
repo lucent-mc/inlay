@@ -65,11 +65,12 @@ fallback, then records their immutable HTTPS declaration in
 instance content: reconciling it stages both its manifest declaration and source bytes. `lay commit`
 refuses any manually staged instance payload that is not a declared configuration source.
 
-For automation or one file at a time:
+For automation, reconcile one file or apply one action to every unresolved file below a directory:
 
 ```sh
 lay status --no-interactive --json
 lay reconcile config/sodium-options.json --action add --no-interactive
+lay reconcile config --action add --no-interactive
 lay commit -m "Tune defaults after playtesting"
 ```
 
@@ -85,9 +86,12 @@ When a supported defaults provider is identified from a resolved Modrinth projec
 authored convention, `lay status` treats ordinary generated `config/` files as runtime copies. It
 compares and reconciles them through Configured Defaults (`configureddefaults`), Config Manager
 (`config/modpack_defaults`), YOSBR (`config/yosbr`), or Default Options' mirrored `extra/` tree
-(`config/defaultoptions/extra`). Generated empty skeletons do not activate projection, and ambiguous
-providers leave runtime files visible for explicit handling. Provider controls and specialized options,
-keybinding, resource-pack, and plugin behavior are not treated as generic config-file copies.
+(`config/defaultoptions/extra`). Status keeps the live `config/` path as the authoring surface; tracking
+copies those bytes to the selected provider store and declares and stages that stored path. Existing
+authored files in a provider store remain directly discoverable until adopted, even when Git ignores
+the store. Generated empty skeletons do not activate projection, and ambiguous providers leave runtime
+files visible for explicit handling. Provider controls and specialized options, keybinding,
+resource-pack, and plugin behavior are not treated as generic config-file copies.
 
 Choosing “track upstream” never edits another repository. It stops and names the Layer that must receive the change; release that Layer, then update the child’s immutable parent reference.
 
