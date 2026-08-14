@@ -154,22 +154,14 @@ function entriesBelow(report: Awaited<ReturnType<typeof status>>, targets: strin
   const selected = new Map<string, StatusEntry>();
   for (const value of targets) {
     const target = normalizedTarget(value).toLocaleLowerCase("en-US");
-    const exact = unresolved.filter((entry) =>
-      [entry.path, entry.declarationPath]
-        .filter((candidate): candidate is string => candidate !== undefined)
-        .some((candidate) => candidate.toLocaleLowerCase("en-US") === target),
-    );
+    const exact = unresolved.filter((entry) => entry.path.toLocaleLowerCase("en-US") === target);
     const matches =
       exact.length > 0
         ? exact
-        : unresolved.filter((entry) =>
-            [entry.path, entry.declarationPath]
-              .filter((candidate): candidate is string => candidate !== undefined)
-              .some((candidate) => {
-                const normalized = candidate.toLocaleLowerCase("en-US");
-                return target === "" || normalized.startsWith(`${target}/`);
-              }),
-          );
+        : unresolved.filter((entry) => {
+            const normalized = entry.path.toLocaleLowerCase("en-US");
+            return target === "" || normalized.startsWith(`${target}/`);
+          });
     for (const entry of matches) selected.set(entry.path.toLocaleLowerCase("en-US"), entry);
   }
   return [...selected.values()].sort((left, right) => left.path.localeCompare(right.path));
@@ -253,11 +245,7 @@ export async function reconcilePath(
   options: ReconcileOptions,
 ): Promise<{ action: ReconcileAction; staged: string[] }> {
   const report = await status(root);
-  const entry = report.entries.find(
-    (candidate) =>
-      candidate.path.toLowerCase() === target.toLowerCase() ||
-      candidate.declarationPath?.toLowerCase() === target.toLowerCase(),
-  );
+  const entry = report.entries.find((candidate) => candidate.path.toLowerCase() === target.toLowerCase());
   if (!entry || ["unchanged", "reconciled"].includes(entry.state)) {
     throw new InlayError(
       error("nothing-to-reconcile", `${target} has no unresolved status.`, { path: target }),

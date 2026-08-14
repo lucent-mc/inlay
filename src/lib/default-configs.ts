@@ -18,6 +18,8 @@ export interface DefaultConfigProvider {
   id: DefaultConfigProviderId;
   name: string;
   evidence: DefaultConfigEvidence;
+  /** Whether this provider's defaults-store directory exists in the instance. */
+  directoryPresent: boolean;
   /** Whether the convention contains author-supplied state rather than only a generated skeleton. */
   authored: boolean;
 }
@@ -321,7 +323,8 @@ function tomlJarIdentity(bytes: Uint8Array, jarPath: string): JarIdentity[] {
 async function jarIdentities(root: string, files: readonly FileDeclaration[]): Promise<JarIdentity[]> {
   const candidates = new Set(await regularFilesUnder(root, ["mods"]));
   for (const file of files) {
-    if (!file.path.toLocaleLowerCase("en-US").endsWith(".jar") || !isRepositoryFile(file)) continue;
+    const key = lower(file.path);
+    if (!key.startsWith("mods/") || !key.endsWith(".jar") || !isRepositoryFile(file)) continue;
     candidates.add(file.downloads[0].slice(2));
   }
   const identities: JarIdentity[] = [];
@@ -343,10 +346,12 @@ export async function detectDefaultConfigProviders(
   files: readonly FileDeclaration[],
 ): Promise<DefaultConfigProvider[]> {
   const modrinth = files.flatMap((file) =>
-    file.downloads.flatMap((download) => {
-      const identity = modrinthIdentityFromUrl(download);
-      return identity ? [identity] : [];
-    }),
+    lower(file.path).startsWith("mods/")
+      ? file.downloads.flatMap((download) => {
+          const identity = modrinthIdentityFromUrl(download);
+          return identity ? [identity] : [];
+        })
+      : [],
   );
   const jars = await jarIdentities(root, files);
   const providers: DefaultConfigProvider[] = [];
@@ -367,7 +372,15 @@ export async function detectDefaultConfigProviders(
         : convention
           ? { kind: "convention", path: adapter.conventionRoot }
           : undefined;
-    if (evidence) providers.push({ id: adapter.id, name: adapter.name, evidence, authored });
+    if (evidence) {
+      providers.push({
+        id: adapter.id,
+        name: adapter.name,
+        evidence,
+        directoryPresent: convention,
+        authored,
+      });
+    }
   }
   return providers;
 }
@@ -421,8 +434,8 @@ export function isRuntimeConfigPath(candidate: string): boolean {
 
 /**
  * Map only ordinary runtime config files. Specialized options, keybinding, plugin, and control
- * semantics never cross this seam. Existing authored defaults may disambiguate multiple providers;
- * otherwise an ambiguous or generated-only convention deliberately has no projection.
+ * semantics never cross this seam. Projection requires both the provider mod and its store directory.
+ * An existing target may disambiguate multiple otherwise eligible providers.
  */
 export async function projectRuntimeConfig(
   root: string,
@@ -437,7 +450,7 @@ export async function projectRuntimeConfig(
   }
   const relative = normalized.slice("config/".length);
   const eligible = providers.filter(
-    (provider) => provider.evidence.kind !== "convention" || provider.authored,
+    (provider) => provider.directoryPresent && provider.evidence.kind !== "convention",
   );
   const projections = eligible.flatMap((provider) => {
     const adapter = adapterById.get(provider.id);

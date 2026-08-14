@@ -54,11 +54,7 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
     const source = declaration.downloads[0].slice(2);
     known.add(source.toLowerCase());
     const filename = resolveInside(root, source);
-    const classification = classifyDefaultConfigPath(source, defaultConfigProviders);
-    const runtimePath = classification?.kind === "mirror" ? classification.runtimePath : undefined;
-    const runtimeExists = runtimePath ? await exists(resolveInside(root, runtimePath)) : false;
-    if (runtimePath && runtimeExists) known.add(runtimePath.toLowerCase());
-    if (!(await exists(filename)) && !runtimeExists) {
+    if (!(await exists(filename))) {
       entries.push({
         path: source,
         state: "deleted",
@@ -68,33 +64,43 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
       });
       continue;
     }
-    const authoringPath = runtimePath && runtimeExists ? runtimePath : source;
-    const bytes = await readFile(resolveInside(root, authoringPath));
-    const changed =
-      bytes.byteLength !== declaration.fileSize || digest(bytes, "sha256") !== declaration.hashes.sha256;
-    let repositoryChanged = false;
-    if (authoringPath !== source) {
-      if (!(await exists(filename))) {
-        repositoryChanged = true;
-      } else {
-        const storedBytes = await readFile(filename);
-        repositoryChanged =
-          storedBytes.byteLength !== declaration.fileSize ||
-          digest(storedBytes, "sha256") !== declaration.hashes.sha256;
-      }
-    }
+    const storedBytes = await readFile(filename);
+    const storedChanged =
+      storedBytes.byteLength !== declaration.fileSize ||
+      digest(storedBytes, "sha256") !== declaration.hashes.sha256;
     const isStaged = staged.has(source.toLowerCase());
+    if (storedChanged) {
+      entries.push({
+        path: source,
+        state: "updated",
+        owner: `${manifest.name}@${manifest.versionId}`,
+        detail: "Working bytes differ from the current files[] declaration.",
+        staged: isStaged,
+      });
+      continue;
+    }
+    const classification = classifyDefaultConfigPath(source, defaultConfigProviders);
+    const runtimePath = classification?.kind === "mirror" ? classification.runtimePath : undefined;
+    const projectRuntime =
+      runtimePath !== undefined &&
+      !layIgnore.ignores(runtimePath) &&
+      (await projectRuntimeConfig(root, runtimePath, defaultConfigProviders))?.path.toLowerCase() ===
+        source.toLowerCase() &&
+      (await exists(resolveInside(root, runtimePath)));
+    const authoringPath = projectRuntime && runtimePath ? runtimePath : source;
+    if (projectRuntime && runtimePath) known.add(runtimePath.toLowerCase());
+    const authoringBytes = projectRuntime ? await readFile(resolveInside(root, authoringPath)) : storedBytes;
+    const runtimeChanged =
+      authoringBytes.byteLength !== declaration.fileSize ||
+      digest(authoringBytes, "sha256") !== declaration.hashes.sha256;
     entries.push({
       path: authoringPath,
       ...(authoringPath === source ? {} : { declarationPath: source }),
-      state: changed || repositoryChanged ? "updated" : isStaged ? "reconciled" : "unchanged",
+      state: runtimeChanged ? "updated" : isStaged ? "reconciled" : "unchanged",
       owner: `${manifest.name}@${manifest.versionId}`,
-      detail:
-        changed || repositoryChanged
-          ? authoringPath === source
-            ? "Working bytes differ from the current files[] declaration."
-            : `${authoringPath} differs from the declared default stored at ${source}.`
-          : "Matches declared hashes and size.",
+      detail: runtimeChanged
+        ? `${authoringPath} differs from the declared default stored at ${source}.`
+        : "Matches declared hashes and size.",
       staged: isStaged,
     });
   }
