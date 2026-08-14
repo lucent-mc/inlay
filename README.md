@@ -69,7 +69,9 @@ lay commit -m "Tune defaults after playtesting"
 `lay init` writes a committed `.layignore` for repository-owned Layer-discovery rules and manages
 local Git visibility separately in `.git/info/exclude`. Git-ignored Minecraft downloads remain visible
 to `lay status`; `.layignore` is the policy that suppresses an otherwise eligible implicit candidate.
-Explicit `files[]` declarations are always checked.
+Choose **Ignore in this Layer** while reconciling an untracked file to keep it locally, append its
+exact path to `.layignore`, and stage that policy change. Explicit `files[]` declarations are always
+checked.
 
 When a supported defaults provider is identified from a resolved Modrinth project, JAR metadata, or an
 authored convention, `lay status` treats ordinary generated `config/` files as runtime copies. It
