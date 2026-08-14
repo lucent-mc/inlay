@@ -1,4 +1,4 @@
-export const TOOLKIT_VERSION = "0.1.0";
+export const TOOLKIT_VERSION = "0.1.3";
 export const MANIFEST_FILENAME = "inlay.index.json";
 export const MANIFEST_SCHEMA_VERSION = "1.0.0";
 export const MANIFEST_SCHEMA_URL =
