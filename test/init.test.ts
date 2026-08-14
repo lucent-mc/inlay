@@ -37,6 +37,7 @@ test("init force-stages the manifest when the instance ignores all files", async
     "/logs/",
     "/crash-reports/",
     "/mods/",
+    "/node_modules/",
     "/resourcepacks/",
     "/saves/",
     "/screenshots/",
