@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { MANIFEST_SCHEMA_URL } from "../src/constants.js";
 import { hashes } from "../src/lib/hash.js";
 import { canonicalJson } from "../src/lib/json.js";
+import { reconcilePath } from "../src/operations/reconcile.js";
 import { status } from "../src/operations/status.js";
 
 const run = promisify(execFile);
@@ -208,6 +209,41 @@ test("status applies repository-owned .layignore patterns only to implicit candi
     report.entries.map((entry) => entry.path),
     ["config/eligible.json"],
   );
+});
+
+test("preserving an implicit file records it in .layignore and removes it from status", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-preserve-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await writeFile(path.join(root, "options.txt"), "fullscreen:true\n");
+
+  assert.deepEqual(
+    (await status(root)).entries.map((entry) => entry.path),
+    ["options.txt"],
+  );
+
+  const outcome = await reconcilePath(root, "options.txt", {
+    interactive: false,
+    action: "preserve",
+  });
+
+  assert.deepEqual(outcome.staged, [".layignore"]);
+  assert.match(await readFile(path.join(root, ".layignore"), "utf8"), /^\/options\.txt$/mu);
+  assert.deepEqual((await status(root)).entries, []);
+  assert.equal(await readFile(path.join(root, "options.txt"), "utf8"), "fullscreen:true\n");
+  const { stdout: staged } = await run("git", ["diff", "--cached", "--name-only"], { cwd: root });
+  assert.equal(staged.trim(), ".layignore");
 });
 
 test("status projects runtime configs into a detected Configured Defaults tree", async () => {
