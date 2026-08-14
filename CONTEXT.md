@@ -165,8 +165,12 @@ The provenance-aware view of every effective content declaration after composing
 _Avoid_: Layer Manifest, duplicated metadata store, launcher file list
 
 **Dependency Closure**:
-The complete set of required content reachable from the resolved Pack's selected mods under its exact Runtime Target and compatibility adapters. `lay add`, update, and remove reconcile this closure transactionally; ordinary validation and builds report an incomplete closure but never mutate the Layer Manifest to repair it.
+The complete set of required content reachable from the resolved Pack's selected mods under its exact Runtime Target and Dependency Adapters. `lay add`, update, and remove reconcile this closure transactionally; ordinary validation and builds report provider-declared missing or incompatible dependencies as non-blocking warnings and never mutate the Layer Manifest to repair them.
 _Avoid_: Modrinth loader dependencies, optional recommendation, implicit launcher install
+
+**Dependency Adapter**:
+A deterministic project-identity substitution activated by an installed compatibility profile. The Sinytra Connector profile requires Sinytra Connector and Forgified Fabric API, treats Forgified Fabric API as satisfying Fabric API, and recognizes Connector Extras as an optional extension. An adapter refines provider dependency claims without weakening artifact identity or silently installing content.
+_Avoid_: Filename heuristic, arbitrary dependency waiver, loader declaration
 
 **Orphan Dependency**:
 A dependency that was reachable before a removal or update operation but has no remaining dependents afterward. It is a cleanup candidate, not automatically disposable: library-like projects may default to removal, while useful standalone mods require confirmation.

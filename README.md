@@ -70,6 +70,11 @@ that the playable authoring instance has proven usable can be recorded even when
 does not list the Layer's exact target; artifact identity, hashes, content kind, and destination remain
 strictly verified.
 
+Provider-declared missing and incompatible dependencies are reported as warnings rather than blocking
+status, commit, or build. Dependency adapters recognize intentional substitutions; with Sinytra
+Connector and Forgified Fabric API installed, Fabric API requirements are satisfied by FFAPI, and
+Connector Extras is recognized as an optional extension of that profile.
+
 For automation, reconcile one file or apply one action to every unresolved file below a directory:
 
 ```sh
@@ -132,7 +137,7 @@ lay docs --content --licenses --stubs
 lay build --target github modrinth
 ```
 
-`lay check` validates schema, hashes, sizes, immutable lineage, runtime equality, repository tracking, required dependency closure, and incompatibilities. `lay build` permits a manifest-consistent dirty worktree and labels it as a preview; GitHub-hosted delivery requires a clean commit so every generated URL is commit-addressed.
+`lay check` validates schema, hashes, sizes, immutable lineage, runtime equality, and repository tracking, while reporting provider dependency claims and known adapter substitutions. `lay build` permits a manifest-consistent dirty worktree and labels it as a preview; GitHub-hosted delivery requires a clean commit so every generated URL is commit-addressed.
 
 Build output includes:
 
