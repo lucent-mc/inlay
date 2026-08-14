@@ -100,20 +100,23 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
     });
   }
 
-  for (const untracked of await git.untracked()) {
-    if (known.has(untracked.toLowerCase()) || !isImplicitContentCandidate(untracked, manifest.docs ?? "docs"))
-      continue;
+  const candidates = new Map<string, string>();
+  for (const candidate of [...(await git.tracked()), ...(await git.untracked())]) {
+    candidates.set(candidate.toLowerCase(), candidate);
+  }
+  for (const [candidateKey, candidate] of candidates) {
+    if (known.has(candidateKey) || !isImplicitContentCandidate(candidate, manifest.docs ?? "docs")) continue;
     try {
-      const details = await lstat(resolveInside(root, untracked));
+      const details = await lstat(resolveInside(root, candidate));
       if (!details.isFile() || details.isSymbolicLink()) continue;
     } catch {
       continue;
     }
     entries.push({
-      path: untracked,
+      path: candidate,
       state: "untracked",
       owner: "Local instance",
-      detail: "Eligible regular file is not declared and is not Git-ignored.",
+      detail: "Eligible regular file is not declared by this Layer.",
       staged: false,
     });
   }

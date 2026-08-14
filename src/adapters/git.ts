@@ -57,6 +57,11 @@ export class GitAdapter {
     return output ? output.split(/\r?\n/).filter(Boolean) : [];
   }
 
+  async tracked(): Promise<string[]> {
+    const output = await this.run(["ls-files", "--cached"]);
+    return output ? output.split(/\r?\n/).filter(Boolean) : [];
+  }
+
   async staged(): Promise<string[]> {
     const output = await this.run(["diff", "--cached", "--name-only"]);
     return output ? output.split(/\r?\n/).filter(Boolean) : [];

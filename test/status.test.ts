@@ -93,3 +93,30 @@ test("status excludes repository infrastructure from implicit Layer candidates",
     ["config/eligible.json", "scripts/crafttweaker.zs"],
   );
 });
+
+test("status includes Git-tracked files that are not declared by the Layer", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-git-tracked-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "tracked.json"), "{}\n");
+  await run("git", ["add", "--", "config/tracked.json"], { cwd: root });
+
+  const report = await status(root);
+
+  assert.deepEqual(
+    report.entries.map((entry) => [entry.path, entry.state]),
+    [["config/tracked.json", "untracked"]],
+  );
+});
