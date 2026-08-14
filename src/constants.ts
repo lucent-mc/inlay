@@ -1,4 +1,20 @@
-export const TOOLKIT_VERSION = "0.1.3";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+function toolkitVersion(): string {
+  const candidates = [new URL("../package.json", import.meta.url), path.join(process.cwd(), "package.json")];
+  for (const candidate of candidates) {
+    try {
+      const value = JSON.parse(readFileSync(candidate, "utf8")) as { version?: unknown };
+      if (typeof value.version === "string") return value.version;
+    } catch {
+      // Test output has a different relative root from the published package.
+    }
+  }
+  throw new Error("Cannot read the Inlay package version.");
+}
+
+export const TOOLKIT_VERSION = toolkitVersion();
 export const MANIFEST_FILENAME = "inlay.index.json";
 export const LAYIGNORE_FILENAME = ".layignore";
 export const MANIFEST_SCHEMA_VERSION = "1.0.0";
@@ -29,6 +45,7 @@ export const DEFAULT_LOCAL_EXCLUDES = [
   "/libraries/",
   "/logs/",
   "/natives/",
+  "/node_modules/",
   "/saves/",
   "/screenshots/",
   "/server-resource-packs/",
