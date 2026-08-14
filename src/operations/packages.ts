@@ -54,6 +54,7 @@ function environment(project: ModrinthProject): FileEnvironment | undefined {
 }
 
 function directory(project: ModrinthProject): string {
+  if (project.project_type === "plugin") return "plugins";
   if (project.project_type === "resourcepack") return "resourcepacks";
   if (project.project_type === "shader") return "shaderpacks";
   if (project.project_type === "datapack") return "datapacks";

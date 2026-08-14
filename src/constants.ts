@@ -8,6 +8,14 @@ export const JSON_RESULT_SCHEMA_VERSION = 1 as const;
 export const MATERIALIZATION_RECORD = ".inlay/materialization.json";
 export const LOCAL_EXCLUDE_MARKER_START = "# inlay:start";
 export const LOCAL_EXCLUDE_MARKER_END = "# inlay:end";
+export const DOWNLOADED_CONTENT_DIRECTORIES = [
+  "datapacks",
+  "mods",
+  "plugins",
+  "resourcepacks",
+  "shaderpacks",
+  "texturepacks",
+] as const;
 export const DEFAULT_LOCAL_EXCLUDES = [
   "/.cache/",
   "/.fabric/",
@@ -17,17 +25,13 @@ export const DEFAULT_LOCAL_EXCLUDES = [
   "/cache/",
   "/crash-reports/",
   "/downloads/",
-  "/datapacks/",
   "/libraries/",
   "/logs/",
-  "/mods/",
   "/natives/",
   "/saves/",
   "/screenshots/",
   "/server-resource-packs/",
-  "/resourcepacks/",
-  "/shaderpacks/",
-  "/texturepacks/",
+  ...DOWNLOADED_CONTENT_DIRECTORIES.map((directory) => `/${directory}/`),
   "/versions/",
   "/webcache/",
   "/instance.json",

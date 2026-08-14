@@ -4,7 +4,9 @@ import { checkPack } from "./resolve.js";
 function category(item: ContentMetadata): string {
   const name = item.path.toLowerCase();
   if (name.startsWith("mods/")) return "mods";
+  if (name.startsWith("plugins/")) return "plugins";
   if (name.startsWith("resourcepacks/")) return "resource packs";
+  if (name.startsWith("texturepacks/")) return "resource packs";
   if (name.startsWith("shaderpacks/")) return "shader packs";
   if (name.startsWith("datapacks/")) return "data packs";
   if (name.startsWith("config/")) return "configs";

@@ -1,7 +1,7 @@
 import { lstat, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { GitAdapter } from "../adapters/git.js";
-import { MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
+import { DOWNLOADED_CONTENT_DIRECTORIES, MANIFEST_FILENAME, MATERIALIZATION_RECORD } from "../constants.js";
 import { isImplicitContentCandidate } from "../lib/content-candidates.js";
 import {
   detectDefaultConfigProviders,
@@ -90,12 +90,15 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
     const conflict = actual !== undefined && actual !== managed.digest;
     const missing = actual === undefined && managed.policy !== "optional";
     const currentOwner = managed.owner === `${manifest.name}@${manifest.versionId}`;
+    const portableStaged = currentOwner && staged.has(MANIFEST_FILENAME.toLowerCase());
     const state: StatusState = currentOwner
       ? missing
         ? "deleted"
         : conflict
           ? "updated"
-          : "unchanged"
+          : portableStaged
+            ? "reconciled"
+            : "unchanged"
       : conflict || missing
         ? "conflict"
         : "unchanged";
@@ -108,19 +111,12 @@ export async function status(root: string): Promise<{ entries: StatusEntry[]; un
         : missing
           ? "Required managed file is missing."
           : "Matches materialized payload.",
-      staged: false,
+      staged: portableStaged,
     });
   }
 
   const candidates = new Map<string, string>();
-  const downloadedContent = await regularFilesUnder(root, [
-    "config",
-    "datapacks",
-    "mods",
-    "resourcepacks",
-    "shaderpacks",
-    "texturepacks",
-  ]);
+  const downloadedContent = await regularFilesUnder(root, ["config", ...DOWNLOADED_CONTENT_DIRECTORIES]);
   for (const candidate of [...(await git.tracked()), ...(await git.untracked()), ...downloadedContent]) {
     candidates.set(candidate.toLowerCase(), candidate);
   }

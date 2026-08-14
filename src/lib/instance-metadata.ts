@@ -16,9 +16,24 @@ export interface DetectedInstanceMetadata {
   unsupportedLoader?: string;
 }
 
+export interface DetectedModrinthContent {
+  source: string;
+  relativePath: string;
+  fileName: string;
+  sha1: string;
+  fileSize: number;
+  projectId: string;
+  versionId: string;
+  projectType: string;
+  clientRequirement: string;
+  serverRequirement: string;
+}
+
 type JsonObject = Record<string, unknown>;
 
 interface DatabaseInstanceRow {
+  id?: string;
+  contentSetId?: string | null;
   path: string;
   name: string;
   gameVersion: string | null;
@@ -295,6 +310,8 @@ function currentModrinthRows(database: DatabaseSync): DatabaseInstanceRow[] {
   return database
     .prepare(`
       SELECT
+        instance.id AS id,
+        instance.applied_content_set_id AS contentSetId,
         instance.path AS path,
         instance.name AS name,
         content.game_version AS gameVersion,
@@ -306,6 +323,53 @@ function currentModrinthRows(database: DatabaseSync): DatabaseInstanceRow[] {
         AND content.instance_id = instance.id
     `)
     .all() as unknown as DatabaseInstanceRow[];
+}
+
+interface DatabaseContentRow {
+  relativePath: string;
+  fileName: string;
+  sha1: string;
+  fileSize: number;
+  projectId: string;
+  versionId: string;
+  projectType: string;
+  clientRequirement: string;
+  serverRequirement: string;
+}
+
+function currentModrinthContentRows(
+  database: DatabaseSync,
+  instanceId: string,
+  contentSetId: string,
+): DatabaseContentRow[] {
+  if (!tableExists(database, "instance_files") || !tableExists(database, "instance_content_entries")) {
+    return [];
+  }
+  return database
+    .prepare(`
+      SELECT
+        file.relative_path AS relativePath,
+        file.file_name AS fileName,
+        file.sha1 AS sha1,
+        file.size AS fileSize,
+        entry.project_id AS projectId,
+        entry.version_id AS versionId,
+        entry.project_type AS projectType,
+        entry.client_requirement AS clientRequirement,
+        entry.server_requirement AS serverRequirement
+      FROM instance_content_entries entry
+      INNER JOIN instance_files file
+        ON file.id = entry.file_id
+        AND file.instance_id = entry.instance_id
+      WHERE entry.instance_id = ?
+        AND entry.content_set_id = ?
+        AND entry.project_id IS NOT NULL
+        AND entry.version_id IS NOT NULL
+        AND entry.enabled = 1
+        AND file.enabled = 1
+        AND file.missing = 0
+    `)
+    .all(instanceId, contentSetId) as unknown as DatabaseContentRow[];
 }
 
 function legacyModrinthRows(database: DatabaseSync): DatabaseInstanceRow[] {
@@ -363,6 +427,47 @@ async function detectModrinthDatabase(root: string): Promise<DetectedInstanceMet
   for (const settingsDirectory of modrinthSettingsDirectories(root)) {
     const detected = await detectModrinthDatabaseAt(root, settingsDirectory);
     if (detected) return detected;
+  }
+  return undefined;
+}
+
+/** Read Modrinth's installed-content identity without mutating launcher state. */
+export async function detectModrinthContent(
+  root: string,
+  candidate: string,
+): Promise<DetectedModrinthContent | undefined> {
+  const normalizedCandidate = candidate.replaceAll("\\", "/").toLocaleLowerCase("en-US");
+  for (const settingsDirectory of modrinthSettingsDirectories(root)) {
+    const source = path.join(settingsDirectory, "app.db");
+    try {
+      await access(source);
+    } catch {
+      continue;
+    }
+    let database: DatabaseSync | undefined;
+    try {
+      database = new DatabaseSync(source, { readOnly: true });
+      const configDirectory = modrinthConfigDirectory(database, settingsDirectory);
+      const matches: DetectedModrinthContent[] = [];
+      for (const instance of currentModrinthRows(database)) {
+        if (
+          !instance.id ||
+          !instance.contentSetId ||
+          !(await samePath(root, path.join(configDirectory, "profiles", instance.path)))
+        )
+          continue;
+        for (const row of currentModrinthContentRows(database, instance.id, instance.contentSetId)) {
+          if (row.relativePath.replaceAll("\\", "/").toLocaleLowerCase("en-US") !== normalizedCandidate)
+            continue;
+          matches.push({ source, ...row });
+        }
+      }
+      if (matches.length === 1) return matches[0];
+    } catch {
+      // Launcher databases are optional evidence and may use an unknown future schema.
+    } finally {
+      database?.close();
+    }
   }
   return undefined;
 }

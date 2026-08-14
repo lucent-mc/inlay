@@ -29,7 +29,9 @@ interface Fragment {
 
 function kind(value: string): string {
   if (value.startsWith("mods/")) return "mod";
+  if (value.startsWith("plugins/")) return "plugin";
   if (value.startsWith("resourcepacks/")) return "resource-pack";
+  if (value.startsWith("texturepacks/")) return "resource-pack";
   if (value.startsWith("shaderpacks/")) return "shader-pack";
   if (value.startsWith("datapacks/")) return "data-pack";
   if (value.startsWith("config/")) return "config";

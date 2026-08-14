@@ -69,6 +69,12 @@ export class ModrinthAdapter {
     return this.json(`/version/${encodeURIComponent(id)}`);
   }
 
+  versionFromHash(hash: string, algorithm: "sha1" | "sha512"): Promise<ModrinthVersion> {
+    return this.json(
+      `/version_file/${encodeURIComponent(hash)}?${new URLSearchParams({ algorithm }).toString()}`,
+    );
+  }
+
   project(id: string): Promise<ModrinthProject> {
     return this.json(`/project/${encodeURIComponent(id)}`);
   }

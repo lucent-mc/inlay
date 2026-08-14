@@ -37,6 +37,14 @@ async function existingRecord(root: string): Promise<MaterializationRecord | und
   }
 }
 
+async function writeRecord(root: string, record: MaterializationRecord): Promise<void> {
+  const recordPath = path.join(root, MATERIALIZATION_RECORD);
+  await mkdir(path.dirname(recordPath), { recursive: true });
+  const temporaryRecord = `${recordPath}.${process.pid}.tmp`;
+  await writeFile(temporaryRecord, canonicalJson(record), "utf8");
+  await rename(temporaryRecord, recordPath);
+}
+
 async function fileDigest(filename: string, algorithm: "sha256" | "sha512"): Promise<string | undefined> {
   try {
     const details = await stat(filename);
@@ -58,6 +66,59 @@ function contentIntegrity(
     digest: content.payload.hashes.sha512,
     fileSize: content.payload.fileSize,
   };
+}
+
+/** Record one already-present resolved payload without materializing any other content. */
+export async function recordMaterializedPath(root: string, target: string): Promise<MaterializationRecord> {
+  const resolver = new LineageResolver();
+  const pack = composeLayers(await resolver.local(root));
+  const previous = await existingRecord(root);
+  const environments: Environment[] = previous ? [previous.environment] : ["client", "server"];
+  const selected = environments
+    .map((environment) => ({
+      environment,
+      content: pack.slots.get(`${target.toLowerCase()}\0${environment}`),
+    }))
+    .find((candidate) => candidate.content !== undefined);
+  if (!selected?.content) {
+    throw new InlayError(
+      error("materialization-source-missing", `${target} is not present in the resolved content plan.`, {
+        path: target,
+      }),
+    );
+  }
+  const integrity = contentIntegrity(selected.content);
+  const filename = resolveInside(root, selected.content.path);
+  const actual = await fileDigest(filename, integrity.algorithm);
+  const details = await stat(filename).catch(() => undefined);
+  if (actual !== integrity.digest || details?.size !== integrity.fileSize) {
+    throw new InlayError(
+      error("materialization-drift", `${target} does not match its reconciled declaration.`, {
+        path: target,
+      }),
+    );
+  }
+  const entry: MaterializationEntry = {
+    path: selected.content.path,
+    owner: `${selected.content.owner.name}@${selected.content.owner.versionId}`,
+    ...integrity,
+    policy: selected.content.env[selected.environment],
+  };
+  const record: MaterializationRecord = {
+    formatVersion: 1,
+    environment: selected.environment,
+    fingerprint: packFingerprint(pack),
+    entries: [
+      ...(previous?.entries ?? []).filter((item) => item.path.toLowerCase() !== target.toLowerCase()),
+      entry,
+    ],
+  };
+  await writeRecord(root, record);
+  await updateGeneratedExcludes(
+    root,
+    record.entries.map((item) => item.path),
+  );
+  return record;
 }
 
 export async function materialize(root: string, environment: Environment): Promise<MaterializationRecord> {
@@ -130,11 +191,7 @@ export async function materialize(root: string, environment: Environment): Promi
     fingerprint: packFingerprint(pack),
     entries,
   };
-  const recordPath = path.join(root, MATERIALIZATION_RECORD);
-  await mkdir(path.dirname(recordPath), { recursive: true });
-  const temporaryRecord = `${recordPath}.${process.pid}.tmp`;
-  await writeFile(temporaryRecord, canonicalJson(record), "utf8");
-  await rename(temporaryRecord, recordPath);
+  await writeRecord(root, record);
   await updateGeneratedExcludes(root, ignored);
   return record;
 }

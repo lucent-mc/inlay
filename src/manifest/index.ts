@@ -4,6 +4,7 @@ import { Ajv2020, type ErrorObject, type ValidateFunction } from "ajv/dist/2020.
 import addFormatsImport from "ajv-formats";
 import { MANIFEST_FILENAME, MANIFEST_SCHEMA_VERSION } from "../constants.js";
 import { error, InlayError, warning } from "../diagnostics.js";
+import { contentAuthority } from "../lib/content-authority.js";
 import { canonicalJson } from "../lib/json.js";
 import { contentKey, normalizeContentPath, repositoryRelativePath } from "../lib/path.js";
 import type {
@@ -96,7 +97,18 @@ export async function validateManifest(
   const occupied = new Map<string, string>();
   for (const file of manifest.files) {
     normalizeContentPath(file.path);
-    if (isRepositoryFile(file)) repositoryRelativePath(file.downloads[0]);
+    if (isRepositoryFile(file)) {
+      repositoryRelativePath(file.downloads[0]);
+      if (contentAuthority(file.path) !== "repository-config") {
+        throw new InlayError(
+          error(
+            "repository-content-forbidden",
+            `Only configuration content may be repository-backed; ${file.path} requires immutable remote downloads.`,
+            { path: file.path },
+          ),
+        );
+      }
+    }
     for (const environment of environmentsFor(file)) {
       const key = `${contentKey(file.path)}\0${environment}`;
       const previous = occupied.get(key);
