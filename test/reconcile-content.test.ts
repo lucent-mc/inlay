@@ -289,6 +289,83 @@ test("reconcile prefers read-only Modrinth instance identity over a hash lookup"
   }
 });
 
+test("lay commit returns provider dependency warnings without blocking", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-commit-dependency-warning-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  const bytes = new TextEncoder().encode("language reload bytes");
+  const identity = hashes(bytes);
+  const download = "https://cdn.modrinth.com/data/uLbm7CG6/versions/language-version/language-reload.jar";
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Dependency warning",
+      files: [
+        {
+          path: "mods/language-reload.jar",
+          hashes: { sha1: identity.sha1, sha512: identity.sha512 },
+          downloads: [download],
+          fileSize: bytes.byteLength,
+        },
+      ],
+      dependencies: { minecraft: "26.1.2", "neoforge-loader": "21.1.0" },
+    }),
+  );
+  await run("git", ["add", "--", "inlay.index.json"], { cwd: root });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url === download) return new Response(bytes);
+    if (url.endsWith("/version/language-version")) {
+      return Response.json({
+        id: "language-version",
+        project_id: "uLbm7CG6",
+        name: "Language Reload",
+        version_number: "1.0.0",
+        game_versions: ["26.1.2"],
+        version_type: "release",
+        loaders: ["fabric"],
+        dependencies: [
+          {
+            version_id: null,
+            project_id: "P7dR8mSH",
+            file_name: null,
+            dependency_type: "required",
+          },
+        ],
+        files: [],
+      });
+    }
+    if (url.endsWith("/project/uLbm7CG6")) {
+      return Response.json({
+        id: "uLbm7CG6",
+        slug: "language-reload",
+        title: "Language Reload",
+        project_type: "mod",
+        license: { id: "MIT", name: "MIT", url: null },
+        categories: ["fabric"],
+        client_side: "required",
+        server_side: "required",
+      });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    const outcome = await commitStaged(root, { interactive: false, dryRun: true });
+    assert.deepEqual(
+      outcome.diagnostics.map((item) => [item.code, item.severity]),
+      [["dependency-missing", "warning"]],
+    );
+    assert.equal(outcome.committed, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("lay commit refuses manually staged instance content", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-commit-content-"));
   await run("git", ["init", "-q"], { cwd: root });
