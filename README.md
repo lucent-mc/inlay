@@ -57,6 +57,19 @@ lay reconcile config/sodium-options.json --action add --no-interactive
 lay commit -m "Tune defaults after playtesting"
 ```
 
+`lay init` writes a committed `.layignore` for repository-owned Layer-discovery rules and manages
+local Git visibility separately in `.git/info/exclude`. Git-ignored Minecraft downloads remain visible
+to `lay status`; `.layignore` is the policy that suppresses an otherwise eligible implicit candidate.
+Explicit `files[]` declarations are always checked.
+
+When a supported defaults provider is identified from a resolved Modrinth project, JAR metadata, or an
+authored convention, `lay status` treats ordinary generated `config/` files as runtime copies. It
+compares and reconciles them through Configured Defaults (`configureddefaults`), Config Manager
+(`config/modpack_defaults`), YOSBR (`config/yosbr`), or Default Options' mirrored `extra/` tree
+(`config/defaultoptions/extra`). Generated empty skeletons do not activate projection, and ambiguous
+providers leave runtime files visible for explicit handling. Provider controls and specialized options,
+keybinding, resource-pack, and plugin behavior are not treated as generic config-file copies.
+
 Choosing “track upstream” never edits another repository. It stops and names the Layer that must receive the change; release that Layer, then update the child’s immutable parent reference.
 
 ## Content management
