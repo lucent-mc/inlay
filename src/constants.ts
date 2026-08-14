@@ -24,6 +24,7 @@ export const DEFAULT_LOCAL_EXCLUDES = [
   "/backups/",
   "/cache/",
   "/crash-reports/",
+  "/data/fabric_default_resource_packs.json",
   "/downloads/",
   "/libraries/",
   "/logs/",
