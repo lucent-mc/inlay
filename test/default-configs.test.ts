@@ -34,9 +34,17 @@ const projections = {
   "default-options": "config/defaultoptions/extra/config/example.json",
 } as const;
 
+const providerRoots = {
+  "configured-defaults": "configureddefaults",
+  "config-manager": "config/modpack_defaults",
+  yosbr: "config/yosbr",
+  "default-options": "config/defaultoptions",
+} as const;
+
 for (const [id, [projectId]] of Object.entries(identities)) {
   test(`detects ${id} from its resolved Modrinth identity and retains the version`, async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), `inlay-${id}-`));
+    await mkdir(path.join(root, providerRoots[id as keyof typeof providerRoots]), { recursive: true });
 
     const providers = await detectDefaultConfigProviders(root, [modrinthFile(projectId)]);
     const projection = await projectRuntimeConfig(root, "config/example.json", providers);
@@ -49,9 +57,34 @@ for (const [id, [projectId]] of Object.entries(identities)) {
   });
 }
 
+test("requires both the provider directory and matching mod before projecting runtime config", async () => {
+  const projectId = identities["configured-defaults"][0];
+
+  const modOnlyRoot = await mkdtemp(path.join(os.tmpdir(), "inlay-defaults-mod-only-"));
+  const modOnly = await detectDefaultConfigProviders(modOnlyRoot, [modrinthFile(projectId)]);
+  assert.equal(await projectRuntimeConfig(modOnlyRoot, "config/example.json", modOnly), undefined);
+
+  const directoryOnlyRoot = await mkdtemp(path.join(os.tmpdir(), "inlay-defaults-directory-only-"));
+  await mkdir(path.join(directoryOnlyRoot, "configureddefaults"));
+  const directoryOnly = await detectDefaultConfigProviders(directoryOnlyRoot, []);
+  assert.equal(
+    await projectRuntimeConfig(directoryOnlyRoot, "config/example.json", directoryOnly),
+    undefined,
+  );
+
+  const pairedRoot = await mkdtemp(path.join(os.tmpdir(), "inlay-defaults-paired-"));
+  await mkdir(path.join(pairedRoot, "configureddefaults"));
+  const paired = await detectDefaultConfigProviders(pairedRoot, [modrinthFile(projectId)]);
+  assert.equal(
+    (await projectRuntimeConfig(pairedRoot, "config/example.json", paired))?.path,
+    "configureddefaults/config/example.json",
+  );
+});
+
 test("detects a provider from JAR mod metadata when no project identity is available", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-defaults-jar-"));
   await mkdir(path.join(root, "mods"));
+  await mkdir(path.join(root, "config", "yosbr"), { recursive: true });
   await writeFile(
     path.join(root, "mods", "yosbr.jar"),
     zipSync({
@@ -66,6 +99,10 @@ test("detects a provider from JAR mod metadata when no project identity is avail
   assert.deepEqual(
     providers.map((provider) => [provider.id, provider.evidence]),
     [["yosbr", { kind: "jar", modId: "yosbr", version: "0.1.2", path: "mods/yosbr.jar" }]],
+  );
+  assert.equal(
+    (await projectRuntimeConfig(root, "config/example.json", providers))?.path,
+    "config/yosbr/config/example.json",
   );
 });
 
@@ -86,6 +123,8 @@ test("distinguishes a generated empty YOSBR skeleton from authored defaults", as
 
 test("does not silently choose between multiple providers", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-defaults-ambiguous-"));
+  await mkdir(path.join(root, "configureddefaults"));
+  await mkdir(path.join(root, "config", "yosbr"), { recursive: true });
   const providers = await detectDefaultConfigProviders(root, [
     modrinthFile(identities["configured-defaults"][0]),
     modrinthFile(identities.yosbr[0]),

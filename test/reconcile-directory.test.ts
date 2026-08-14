@@ -93,3 +93,48 @@ test("directory reconciliation rejects an action that cannot apply to every file
   const { stdout: staged } = await run("git", ["diff", "--cached", "--name-only"], { cwd: root });
   assert.equal(staged, "");
 });
+
+test("directory selection follows visible paths instead of hidden projection destinations", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-reconcile-visible-directory-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Visible directory selection",
+      files: [
+        {
+          path: "mods/configured-defaults.jar",
+          hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+          downloads: [
+            "https://cdn.modrinth.com/data/SISoSFPP/versions/immutable-version/configured-defaults.jar",
+          ],
+          fileSize: 1,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await mkdir(path.join(root, "configureddefaults", "config"), { recursive: true });
+  for (let index = 1; index <= 4; index += 1) {
+    await writeFile(path.join(root, "configureddefaults", "config", `legacy-${index}.json`), "{}\n");
+  }
+  await mkdir(path.join(root, "config", "runtime"), { recursive: true });
+  for (let index = 1; index <= 36; index += 1) {
+    await writeFile(path.join(root, "config", "runtime", `${index}.json`), "{}\n");
+  }
+
+  const outcome = await reconcileTarget(root, "configureddefaults", {
+    interactive: false,
+    action: "add",
+    dryRun: true,
+  });
+
+  assert.deepEqual(
+    outcome.paths,
+    Array.from({ length: 4 }, (_, index) => `configureddefaults/config/legacy-${index + 1}.json`),
+  );
+});

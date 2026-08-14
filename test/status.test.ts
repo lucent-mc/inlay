@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -12,6 +12,13 @@ import { reconcilePath } from "../src/operations/reconcile.js";
 import { status } from "../src/operations/status.js";
 
 const run = promisify(execFile);
+
+const configuredDefaultsMod = {
+  path: "mods/configured-defaults.jar",
+  hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+  downloads: ["https://cdn.modrinth.com/data/SISoSFPP/versions/immutable-version/configured-defaults.jar"],
+  fileSize: 1,
+};
 
 test("status orders eligible untracked files before changed current-layer files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-"));
@@ -301,6 +308,7 @@ test("status reports runtime drift against a declared default at the authorable 
       versionId: "1.0.0",
       name: "Status",
       files: [
+        configuredDefaultsMod,
         {
           path: defaultPath,
           hashes: { sha1: identity.sha1, sha256: identity.sha256 },
@@ -369,7 +377,7 @@ test("status keeps Config Manager control flags direct while projecting ordinary
       dependencies: { minecraft: "1.21.1" },
     }),
   );
-  await mkdir(path.join(root, "config"));
+  await mkdir(path.join(root, "config", "modpack_defaults"), { recursive: true });
   await writeFile(path.join(root, "config", "CONFIG_MANAGER_RESET_FLAG"), "");
   await writeFile(path.join(root, "config", "example.json"), "{}\n");
 
@@ -413,7 +421,7 @@ test("status never offers the Default Options journal for packaging", async () =
   assert.deepEqual((await status(root)).entries, []);
 });
 
-test(".layignore cannot hide runtime drift for an explicit defaults declaration", async () => {
+test(".layignore suppresses runtime projection without hiding the stored declaration", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-explicit-default-"));
   await run("git", ["init", "-q"], { cwd: root });
   const defaults = new TextEncoder().encode('{"enabled":true}\n');
@@ -433,6 +441,7 @@ test(".layignore cannot hide runtime drift for an explicit defaults declaration"
       versionId: "1.0.0",
       name: "Status",
       files: [
+        configuredDefaultsMod,
         {
           path: defaultPath,
           hashes: { sha1: identity.sha1, sha256: identity.sha256 },
@@ -448,7 +457,7 @@ test(".layignore cannot hide runtime drift for an explicit defaults declaration"
 
   assert.deepEqual(
     report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
-    [["config/example.json", defaultPath, "updated"]],
+    [[defaultPath, undefined, "unchanged"]],
   );
 });
 
@@ -471,6 +480,7 @@ test("status detects newer runtime drift after a matching default was staged", a
       versionId: "1.0.0",
       name: "Status",
       files: [
+        configuredDefaultsMod,
         {
           path: defaultPath,
           hashes: { sha1: identity.sha1, sha256: identity.sha256 },
@@ -491,7 +501,7 @@ test("status detects newer runtime drift after a matching default was staged", a
   );
 });
 
-test("status discovers authored Configured Defaults files even when Git ignores them", async () => {
+test("status keeps an unpaired Configured Defaults store separate from runtime config", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-existing-defaults-"));
   await run("git", ["init", "-q"], { cwd: root });
   await writeFile(
@@ -517,6 +527,60 @@ test("status discovers authored Configured Defaults files even when Git ignores 
 
   assert.deepEqual(
     report.entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
-    [[defaultPath, undefined, "untracked"]],
+    [
+      ["config/example.json", undefined, "untracked"],
+      [defaultPath, undefined, "untracked"],
+    ],
   );
+});
+
+test("a deleted stored default is reconciled independently of its surviving runtime config", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "inlay-status-deleted-stored-default-"));
+  await run("git", ["init", "-q"], { cwd: root });
+  const defaults = new TextEncoder().encode("{}\n");
+  const identity = hashes(defaults);
+  const defaultPath = "configureddefaults/config/example.json";
+  await mkdir(path.dirname(path.join(root, defaultPath)), { recursive: true });
+  await writeFile(path.join(root, defaultPath), defaults);
+  await mkdir(path.join(root, "config"));
+  await writeFile(path.join(root, "config", "example.json"), defaults);
+  await writeFile(path.join(root, ".layignore"), "/config/example.json\n");
+  await writeFile(
+    path.join(root, "inlay.index.json"),
+    canonicalJson({
+      $schema: MANIFEST_SCHEMA_URL,
+      formatVersion: 1,
+      game: "minecraft",
+      versionId: "1.0.0",
+      name: "Status",
+      files: [
+        {
+          path: "mods/configured-defaults.jar",
+          hashes: { sha1: "0".repeat(40), sha512: "0".repeat(128) },
+          downloads: [
+            "https://cdn.modrinth.com/data/SISoSFPP/versions/immutable-version/configured-defaults.jar",
+          ],
+          fileSize: 1,
+        },
+        {
+          path: defaultPath,
+          hashes: { sha1: identity.sha1, sha256: identity.sha256 },
+          downloads: [`./${defaultPath}`],
+          fileSize: defaults.byteLength,
+        },
+      ],
+      dependencies: { minecraft: "1.21.1" },
+    }),
+  );
+  await run("git", ["add", "--", "inlay.index.json", defaultPath], { cwd: root });
+  await unlink(path.join(root, defaultPath));
+
+  assert.deepEqual(
+    (await status(root)).entries.map((entry) => [entry.path, entry.declarationPath, entry.state]),
+    [[defaultPath, undefined, "deleted"]],
+  );
+
+  await reconcilePath(root, defaultPath, { interactive: false, action: "remove" });
+  assert.equal(await readFile(path.join(root, "config", "example.json"), "utf8"), "{}\n");
+  assert.deepEqual((await status(root)).entries, []);
 });
