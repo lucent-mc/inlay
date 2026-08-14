@@ -63,7 +63,9 @@ shaders, and datapacks from verified launcher metadata when available, with Modr
 fallback, then records their immutable HTTPS declaration in
 `inlay.index.json`, and stages only that manifest. Configuration is the sole repository-backed
 instance content: reconciling it stages both its manifest declaration and source bytes. `lay commit`
-refuses any manually staged instance payload that is not a declared configuration source.
+refuses any manually staged instance payload that is not a declared configuration source. Generated
+commit messages summarize manifest additions, updates, and removals by content kind and resolved name;
+bookkeeping files such as `.layignore` are listed separately.
 
 Modrinth's reported Minecraft-version and loader coverage is advisory during reconciliation. A mod
 that the playable authoring instance has proven usable can be recorded even when its Modrinth version
