@@ -363,8 +363,16 @@ test("lay commit describes staged Layer changes while returning provider warning
       [["dependency-missing", "warning"]],
     );
     assert.equal(outcome.subject, "feat(mod): add Language Reload");
-    assert.match(outcome.body, /Added mod: Language Reload \(mods\/language-reload\.jar\)/u);
-    assert.match(outcome.body, /Other staged paths:\n- \.layignore/u);
+    assert.equal(
+      outcome.body,
+      [
+        "Layer changes:",
+        "- Added mod: Language Reload (1.0.0)",
+        "",
+        "Other staged paths:",
+        "- .layignore",
+      ].join("\n"),
+    );
     assert.equal(outcome.committed, false);
   } finally {
     globalThis.fetch = originalFetch;
