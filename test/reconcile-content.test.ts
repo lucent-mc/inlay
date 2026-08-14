@@ -289,7 +289,7 @@ test("reconcile prefers read-only Modrinth instance identity over a hash lookup"
   }
 });
 
-test("lay commit returns provider dependency warnings without blocking", async () => {
+test("lay commit describes staged Layer changes while returning provider warnings", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "inlay-commit-dependency-warning-"));
   await run("git", ["init", "-q"], { cwd: root });
   const bytes = new TextEncoder().encode("language reload bytes");
@@ -314,6 +314,8 @@ test("lay commit returns provider dependency warnings without blocking", async (
       dependencies: { minecraft: "26.1.2", "neoforge-loader": "21.1.0" },
     }),
   );
+  await writeFile(path.join(root, ".layignore"), "options.txt\n");
+  await run("git", ["add", "--", ".layignore"], { cwd: root });
   await run("git", ["add", "--", "inlay.index.json"], { cwd: root });
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -360,6 +362,9 @@ test("lay commit returns provider dependency warnings without blocking", async (
       outcome.diagnostics.map((item) => [item.code, item.severity]),
       [["dependency-missing", "warning"]],
     );
+    assert.equal(outcome.subject, "feat(mod): add Language Reload");
+    assert.match(outcome.body, /Added mod: Language Reload \(mods\/language-reload\.jar\)/u);
+    assert.match(outcome.body, /Other staged paths:\n- \.layignore/u);
     assert.equal(outcome.committed, false);
   } finally {
     globalThis.fetch = originalFetch;
