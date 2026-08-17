@@ -28,7 +28,7 @@ test("status tree starts with every directory collapsed", () => {
   assert.deepEqual([...view.view.expanded], []);
 });
 
-test("shift and arrow keys select multiple unresolved files for reconciliation", async () => {
+test("space toggles every file highlighted with shift and arrow keys", async () => {
   const entries: StatusEntry[] = [
     {
       path: "config/first.json",
@@ -60,7 +60,8 @@ test("shift and arrow keys select multiple unresolved files for reconciliation",
   setTimeout(() => input.write("\u001b[C"), 10);
   setTimeout(() => input.write("\u001b[B"), 30);
   setTimeout(() => input.write("\u001b[1;2B"), 50);
-  setTimeout(() => input.write("\r"), 70);
+  setTimeout(() => input.write(" "), 70);
+  setTimeout(() => input.write("\r"), 90);
 
   const intent = await Promise.race([
     completion,
