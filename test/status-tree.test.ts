@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { PassThrough } from "node:stream";
 import { test } from "node:test";
 import { renderStatusTree, StatusTreePrompt, statusTreeWindow } from "../src/cli/status-tree.js";
 import type { StatusEntry } from "../src/operations/status.js";
@@ -25,6 +26,101 @@ test("status tree starts with every directory collapsed", () => {
   const view = prompt as unknown as { view: { expanded: Set<string> } };
 
   assert.deepEqual([...view.view.expanded], []);
+});
+
+test("shift and arrow keys select multiple unresolved files for reconciliation", async () => {
+  const entries: StatusEntry[] = [
+    {
+      path: "config/first.json",
+      state: "untracked",
+      owner: "Local instance",
+      detail: "Untracked",
+      staged: false,
+    },
+    {
+      path: "config/second.json",
+      state: "untracked",
+      owner: "Local instance",
+      detail: "Untracked",
+      staged: false,
+    },
+    {
+      path: "config/tracked.json",
+      state: "unchanged",
+      owner: "Example@1.0.0",
+      detail: "Unchanged",
+      staged: false,
+    },
+  ];
+  const input = new PassThrough();
+  const output = new PassThrough() as PassThrough & { rows?: number };
+  output.rows = 24;
+  const prompt = new StatusTreePrompt(entries, { input, output });
+  const completion = prompt.prompt();
+  setTimeout(() => input.write("\u001b[C"), 10);
+  setTimeout(() => input.write("\u001b[B"), 30);
+  setTimeout(() => input.write("\u001b[1;2B"), 50);
+  setTimeout(() => input.write("\r"), 70);
+
+  const intent = await Promise.race([
+    completion,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Status tree did not submit the selected range.")), 1_000),
+    ),
+  ]);
+
+  assert.deepEqual(intent, {
+    kind: "reconcile",
+    paths: ["config/first.json", "config/second.json"],
+  });
+});
+
+test("space selects a directory and toggles individual files out of the selection", async () => {
+  const entries: StatusEntry[] = [
+    {
+      path: "config/first.json",
+      state: "untracked",
+      owner: "Local instance",
+      detail: "Untracked",
+      staged: false,
+    },
+    {
+      path: "config/second.json",
+      state: "updated",
+      owner: "Example@1.0.0",
+      detail: "Updated",
+      staged: false,
+    },
+    {
+      path: "config/unchanged.json",
+      state: "unchanged",
+      owner: "Example@1.0.0",
+      detail: "Unchanged",
+      staged: false,
+    },
+  ];
+  const input = new PassThrough();
+  const output = new PassThrough() as PassThrough & { rows?: number };
+  output.rows = 24;
+  const prompt = new StatusTreePrompt(entries, { input, output });
+  const completion = prompt.prompt();
+  setTimeout(() => input.write("\u001b[C"), 10);
+  setTimeout(() => input.write(" "), 30);
+  setTimeout(() => input.write("\u001b[B"), 50);
+  setTimeout(() => input.write(" "), 70);
+  setTimeout(() => input.write("\r"), 90);
+
+  const intent = await Promise.race([
+    completion,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Status tree did not submit the toggled selection.")), 1_000),
+    ),
+  ]);
+
+  assert.deepEqual(intent, {
+    kind: "reconcile",
+    paths: ["config/second.json"],
+  });
 });
 
 test("status tree window keeps every selected row inside its capacity", () => {
