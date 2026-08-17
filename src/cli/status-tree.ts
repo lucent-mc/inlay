@@ -15,6 +15,8 @@ interface Node {
 interface View {
   selected: number;
   expanded: Set<string>;
+  selectedPaths: Set<string>;
+  selectionAnchor?: number;
 }
 
 interface TerminalWritable extends Writable {
@@ -28,6 +30,7 @@ export type StatusTreeWindowItem =
 export interface StatusTreeRenderOptions {
   selected?: number;
   expanded?: ReadonlySet<string>;
+  selectedPaths?: ReadonlySet<string>;
   terminalRows?: number;
 }
 
@@ -115,6 +118,27 @@ function descendants(node: Node): StatusEntry[] {
   return node.children.flatMap(descendants);
 }
 
+function selectable(node: Node): node is Node & { entry: StatusEntry } {
+  return (
+    node.kind === "file" &&
+    node.entry !== undefined &&
+    ["untracked", "conflict", "updated", "deleted"].includes(node.entry.state)
+  );
+}
+
+function selectableEntries(node: Node): StatusEntry[] {
+  return descendants(node).filter((entry) =>
+    ["untracked", "conflict", "updated", "deleted"].includes(entry.state),
+  );
+}
+
+function selectionState(node: Node, selectedPaths: ReadonlySet<string>): "all" | "some" | "none" {
+  const entries = selectableEntries(node);
+  const selected = entries.filter((entry) => selectedPaths.has(entry.path)).length;
+  if (selected === 0) return "none";
+  return selected === entries.length ? "all" : "some";
+}
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -195,7 +219,7 @@ function render(entries: StatusEntry[], view: View, requestedTerminalRows: numbe
   );
   const title = `${pc.cyan("◆")}  ${pc.bold("lay status")}`;
   const totals = `${pc.dim("│")}  ${paint("untracked", `? ${counts["untracked"]}`)}  ${paint("conflict", `! ${counts["conflict"]}`)}  ${paint("updated", `~ ${counts["updated"]}`)}  ${paint("deleted", `− ${counts["deleted"]}`)}  ${paint("reconciled", `✓ ${counts["reconciled"]}`)}  ${paint("unchanged", `· ${counts["unchanged"]}`)}`;
-  const help = `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ←→ collapse/expand  enter reconcile  space inspect  q finish")}`;
+  const help = `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  shift+↑↓ range  space select  ←→ expand/collapse  i inspect  enter reconcile  q finish")}`;
   const header = terminalRows <= 1 ? [] : terminalRows < 4 ? [title] : [title, totals];
   if (terminalRows >= 6) header.push(pc.dim("│"));
   const footer = terminalRows < 3 ? [] : [help];
@@ -210,7 +234,7 @@ function render(entries: StatusEntry[], view: View, requestedTerminalRows: numbe
     detail.push(
       pc.dim("│"),
       `${pc.dim("│")}  ${pc.bold("DETAIL")}`,
-      `${pc.dim("│")}  ${pc.cyan(focused.path)}${focused.kind === "directory" ? pc.dim(` · ${affected.length} files`) : ""}`,
+      `${pc.dim("│")}  ${pc.cyan(focused.path)}${focused.kind === "directory" ? pc.dim(` · ${affected.length} files`) : ""}${view.selectedPaths.size > 0 ? pc.cyan(` · ${view.selectedPaths.size} selected`) : ""}`,
       focused.entry
         ? `${pc.dim("│")}  ${focused.entry.detail} ${pc.dim(`· ${focused.entry.owner}`)}`
         : `${pc.dim("│")}  ${pc.dim(`${unresolved} unresolved · ${affected.length} files`)}`,
@@ -228,10 +252,12 @@ function render(entries: StatusEntry[], view: View, requestedTerminalRows: numbe
     const row = rows[item.index];
     if (!row) continue;
     const active = item.index === selected;
+    const marked = selectionState(row.node, view.selectedPaths);
+    const selectionMark = marked === "all" ? "●" : marked === "some" ? "◐" : " ";
     const branch = row.node.kind === "directory" ? (view.expanded.has(row.node.path) ? "▾" : "▸") : " ";
     const raw = `${"  ".repeat(row.depth)}${branch} ${row.node.name}`;
     lines.push(
-      `${active ? pc.cyan("◆") : pc.dim("│")}  ${paint(row.node.state, symbols[row.node.state])} ${
+      `${active ? pc.cyan("◆") : pc.dim("│")} ${marked === "none" ? " " : pc.cyan(selectionMark)} ${paint(row.node.state, symbols[row.node.state])} ${
         active ? pc.bgCyan(pc.black(pc.bold(` ${raw} `))) : row.node.state === "unchanged" ? pc.dim(raw) : raw
       }`,
     );
@@ -246,6 +272,7 @@ export function renderStatusTree(entries: StatusEntry[], options: StatusTreeRend
     {
       selected: options.selected ?? 0,
       expanded: new Set(options.expanded ?? []),
+      selectedPaths: new Set(options.selectedPaths ?? []),
     },
     options.terminalRows ?? 24,
   );
@@ -262,6 +289,7 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
     const view: View = {
       selected: 0,
       expanded: new Set(),
+      selectedPaths: new Set(),
     };
     super({ ...io, render: () => render(entries, view, measuredTerminalRows(io.output)) }, false);
     this.view = view;
@@ -270,8 +298,8 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
       const rows = visible(tree(this.entries), this.view.expanded);
       const focused = rows[this.view.selected]?.node;
       if (!focused) return;
-      if (action === "up") this.view.selected = Math.max(0, this.view.selected - 1);
-      if (action === "down") this.view.selected = Math.min(rows.length - 1, this.view.selected + 1);
+      if (action === "up" || action === "down") return;
+      if (action === "left" || action === "right") delete this.view.selectionAnchor;
       if (action === "right" && focused.kind === "directory" && !this.view.expanded.has(focused.path)) {
         this.view.expanded.add(focused.path);
       } else if (action === "right" && focused.kind === "directory") {
@@ -286,20 +314,73 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
         if (parent >= 0) this.view.selected = parent;
       }
       if (action === "space") {
-        this._setValue({ kind: "inspect", paths: descendants(focused).map((entry) => entry.path) });
-        this.state = "submit";
+        this.toggleSelection(focused);
       }
     });
-    this.on("key", (character) => {
+    this.on("key", (character, key) => {
+      const alias = character?.toLowerCase();
+      const direction =
+        key.name === "up" || alias === "k" ? "up" : key.name === "down" || alias === "j" ? "down" : undefined;
+      if (direction) {
+        this.moveVertical(direction, key.shift === true && (key.name === "up" || key.name === "down"));
+        return;
+      }
+      if (alias === "i") {
+        const focused = visible(tree(this.entries), this.view.expanded)[this.view.selected]?.node;
+        if (!focused) return;
+        this._setValue({
+          kind: "inspect",
+          paths:
+            this.view.selectedPaths.size > 0
+              ? [...this.view.selectedPaths]
+              : descendants(focused).map((entry) => entry.path),
+        });
+        this.state = "submit";
+        return;
+      }
       if (character?.toLowerCase() !== "q") return;
       this._setValue({ kind: "finish", paths: [] });
       this.state = "submit";
     });
   }
 
+  private toggleSelection(node: Node): void {
+    const entries = selectableEntries(node);
+    const remove = entries.length > 0 && entries.every((entry) => this.view.selectedPaths.has(entry.path));
+    for (const entry of entries) {
+      if (remove) this.view.selectedPaths.delete(entry.path);
+      else this.view.selectedPaths.add(entry.path);
+    }
+    delete this.view.selectionAnchor;
+  }
+
+  private moveVertical(direction: "up" | "down", extend: boolean): void {
+    const rows = visible(tree(this.entries), this.view.expanded);
+    if (rows.length === 0) return;
+    const previous = clamp(this.view.selected, 0, rows.length - 1);
+    const next = clamp(previous + (direction === "up" ? -1 : 1), 0, rows.length - 1);
+    this.view.selected = next;
+    if (!extend) {
+      delete this.view.selectionAnchor;
+      return;
+    }
+    const anchor = this.view.selectionAnchor ?? previous;
+    this.view.selectionAnchor = anchor;
+    this.view.selectedPaths.clear();
+    const start = Math.min(anchor, next);
+    const end = Math.max(anchor, next);
+    for (const row of rows.slice(start, end + 1)) {
+      if (selectable(row.node)) this.view.selectedPaths.add(row.node.entry.path);
+    }
+  }
+
   protected override _shouldSubmit(): boolean {
     const focused = visible(tree(this.entries), this.view.expanded)[this.view.selected]?.node;
     if (!focused) return false;
+    if (this.view.selectedPaths.size > 0) {
+      this._setValue({ kind: "reconcile", paths: [...this.view.selectedPaths] });
+      return true;
+    }
     this._setValue({
       kind: "reconcile",
       paths: descendants(focused).map((entry) => entry.path),
