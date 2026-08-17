@@ -93,12 +93,29 @@ const batchLabels: Record<ReconcileAction, string> = {
 function sharedChoices(entries: StatusEntry[]): Array<{ value: ReconcileAction; label: string }> {
   const first = entries[0];
   if (!first) return [];
-  return choices(first)
+  const shared = choices(first)
     .filter((option) => entries.length === 1 || option.value !== "upstream")
     .filter((option) =>
       entries.every((entry) => choices(entry).some((candidate) => candidate.value === option.value)),
     )
     .map((option) => ({ value: option.value, label: batchLabels[option.value] }));
+  const recordedActions = entries.map(recordedAction);
+  if (
+    entries.length > 1 &&
+    recordedActions.every((action) => action !== undefined) &&
+    new Set(recordedActions).size > 1 &&
+    !shared.some((option) => option.value === "record")
+  ) {
+    shared.unshift({ value: "record", label: "Record every change in this Layer" });
+  }
+  return shared;
+}
+
+function recordedAction(entry: StatusEntry): ReconcileAction | undefined {
+  if (entry.state === "untracked") return "add";
+  if (entry.state === "updated") return "record";
+  if (entry.state === "deleted") return "remove";
+  return undefined;
 }
 
 async function selectBatchAction(
@@ -185,9 +202,10 @@ export async function reconcileTargets(
   const action = await selectBatchAction(entries, label, options);
   const staged = new Set<string>();
   for (const entry of entries) {
+    const entryAction = action === "record" ? (recordedAction(entry) ?? action) : action;
     const outcome = await reconcilePath(root, entry.path, {
       interactive: false,
-      action,
+      action: entryAction,
       ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
     });
     for (const candidate of outcome.staged) staged.add(candidate);
