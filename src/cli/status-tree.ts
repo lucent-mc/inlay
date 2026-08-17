@@ -16,7 +16,7 @@ interface View {
   selected: number;
   expanded: Set<string>;
   selectedPaths: Set<string>;
-  selectionAnchor?: number;
+  highlightAnchor?: number;
 }
 
 interface TerminalWritable extends Writable {
@@ -118,14 +118,6 @@ function descendants(node: Node): StatusEntry[] {
   return node.children.flatMap(descendants);
 }
 
-function selectable(node: Node): node is Node & { entry: StatusEntry } {
-  return (
-    node.kind === "file" &&
-    node.entry !== undefined &&
-    ["untracked", "conflict", "updated", "deleted"].includes(node.entry.state)
-  );
-}
-
 function selectableEntries(node: Node): StatusEntry[] {
   return descendants(node).filter((entry) =>
     ["untracked", "conflict", "updated", "deleted"].includes(entry.state),
@@ -219,7 +211,7 @@ function render(entries: StatusEntry[], view: View, requestedTerminalRows: numbe
   );
   const title = `${pc.cyan("◆")}  ${pc.bold("lay status")}`;
   const totals = `${pc.dim("│")}  ${paint("untracked", `? ${counts["untracked"]}`)}  ${paint("conflict", `! ${counts["conflict"]}`)}  ${paint("updated", `~ ${counts["updated"]}`)}  ${paint("deleted", `− ${counts["deleted"]}`)}  ${paint("reconciled", `✓ ${counts["reconciled"]}`)}  ${paint("unchanged", `· ${counts["unchanged"]}`)}`;
-  const help = `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  shift+↑↓ range  space select  ←→ expand/collapse  i inspect  enter reconcile  q finish")}`;
+  const help = `${pc.cyan("└")}  ${pc.dim("↑↓ navigate  shift+↑↓ highlight  space select  ←→ expand/collapse  i inspect  enter reconcile  q finish")}`;
   const header = terminalRows <= 1 ? [] : terminalRows < 4 ? [title] : [title, totals];
   if (terminalRows >= 6) header.push(pc.dim("│"));
   const footer = terminalRows < 3 ? [] : [help];
@@ -252,13 +244,22 @@ function render(entries: StatusEntry[], view: View, requestedTerminalRows: numbe
     const row = rows[item.index];
     if (!row) continue;
     const active = item.index === selected;
+    const highlighted =
+      active ||
+      (view.highlightAnchor !== undefined &&
+        item.index >= Math.min(view.highlightAnchor, selected) &&
+        item.index <= Math.max(view.highlightAnchor, selected));
     const marked = selectionState(row.node, view.selectedPaths);
     const selectionMark = marked === "all" ? "●" : marked === "some" ? "◐" : " ";
     const branch = row.node.kind === "directory" ? (view.expanded.has(row.node.path) ? "▾" : "▸") : " ";
     const raw = `${"  ".repeat(row.depth)}${branch} ${row.node.name}`;
     lines.push(
-      `${active ? pc.cyan("◆") : pc.dim("│")} ${marked === "none" ? " " : pc.cyan(selectionMark)} ${paint(row.node.state, symbols[row.node.state])} ${
-        active ? pc.bgCyan(pc.black(pc.bold(` ${raw} `))) : row.node.state === "unchanged" ? pc.dim(raw) : raw
+      `${active ? pc.cyan("◆") : highlighted ? pc.cyan("◇") : pc.dim("│")} ${marked === "none" ? " " : pc.cyan(selectionMark)} ${paint(row.node.state, symbols[row.node.state])} ${
+        highlighted
+          ? pc.bgCyan(pc.black(pc.bold(` ${raw} `)))
+          : row.node.state === "unchanged"
+            ? pc.dim(raw)
+            : raw
       }`,
     );
   }
@@ -299,7 +300,7 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
       const focused = rows[this.view.selected]?.node;
       if (!focused) return;
       if (action === "up" || action === "down") return;
-      if (action === "left" || action === "right") delete this.view.selectionAnchor;
+      if (action === "left" || action === "right") delete this.view.highlightAnchor;
       if (action === "right" && focused.kind === "directory" && !this.view.expanded.has(focused.path)) {
         this.view.expanded.add(focused.path);
       } else if (action === "right" && focused.kind === "directory") {
@@ -314,7 +315,7 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
         if (parent >= 0) this.view.selected = parent;
       }
       if (action === "space") {
-        this.toggleSelection(focused);
+        this.toggleSelection(rows);
       }
     });
     this.on("key", (character, key) => {
@@ -344,14 +345,20 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
     });
   }
 
-  private toggleSelection(node: Node): void {
-    const entries = selectableEntries(node);
+  private toggleSelection(rows: Array<{ node: Node; depth: number }>): void {
+    const selected = clamp(this.view.selected, 0, rows.length - 1);
+    const anchor = this.view.highlightAnchor ?? selected;
+    const highlighted = rows.slice(Math.min(anchor, selected), Math.max(anchor, selected) + 1);
+    const entries = [
+      ...new Map(
+        highlighted.flatMap((row) => selectableEntries(row.node)).map((entry) => [entry.path, entry]),
+      ).values(),
+    ];
     const remove = entries.length > 0 && entries.every((entry) => this.view.selectedPaths.has(entry.path));
     for (const entry of entries) {
       if (remove) this.view.selectedPaths.delete(entry.path);
       else this.view.selectedPaths.add(entry.path);
     }
-    delete this.view.selectionAnchor;
   }
 
   private moveVertical(direction: "up" | "down", extend: boolean): void {
@@ -361,17 +368,10 @@ export class StatusTreePrompt extends Prompt<StatusIntent> {
     const next = clamp(previous + (direction === "up" ? -1 : 1), 0, rows.length - 1);
     this.view.selected = next;
     if (!extend) {
-      delete this.view.selectionAnchor;
+      delete this.view.highlightAnchor;
       return;
     }
-    const anchor = this.view.selectionAnchor ?? previous;
-    this.view.selectionAnchor = anchor;
-    this.view.selectedPaths.clear();
-    const start = Math.min(anchor, next);
-    const end = Math.max(anchor, next);
-    for (const row of rows.slice(start, end + 1)) {
-      if (selectable(row.node)) this.view.selectedPaths.add(row.node.entry.path);
-    }
+    this.view.highlightAnchor ??= previous;
   }
 
   protected override _shouldSubmit(): boolean {
